@@ -1,0 +1,132 @@
+diff --color -ruN a/modules/juce_audio_processors/utilities/juce_PluginHostType.cpp b/modules/juce_audio_processors/utilities/juce_PluginHostType.cpp
+--- a/modules/juce_audio_processors/utilities/juce_PluginHostType.cpp	2026-10-07 16:16:07
++++ b/modules/juce_audio_processors/utilities/juce_PluginHostType.cpp	2026-10-07 16:16:08
+@@ -319,6 +319,7 @@
+ 
+    #elif JUCE_IOS
+    #elif JUCE_ANDROID
++   #elif JUCE_WASM
+    #else
+     #error
+    #endif
+diff --color -ruN a/modules/juce_core/juce_core.cpp b/modules/juce_core/juce_core.cpp
+--- a/modules/juce_core/juce_core.cpp	2026-10-07 16:16:07
++++ b/modules/juce_core/juce_core.cpp	2026-10-07 16:16:08
+@@ -79,6 +79,7 @@
+  #endif
+ 
+  #if JUCE_WASM
++  #include <emscripten.h>
+   #include <stdio.h>
+   #include <sys/types.h>
+   #include <sys/socket.h>
+diff --color -ruN a/modules/juce_core/native/juce_ThreadPriorities_native.h b/modules/juce_core/native/juce_ThreadPriorities_native.h
+--- a/modules/juce_core/native/juce_ThreadPriorities_native.h	2026-10-07 16:16:07
++++ b/modules/juce_core/native/juce_ThreadPriorities_native.h	2026-10-07 16:16:08
+@@ -66,7 +66,7 @@
+         { Thread::Priority::background, AndroidThreadPriority::THREAD_PRIORITY_BACKGROUND },
+        #endif
+ 
+-       #if JUCE_LINUX || JUCE_BSD
++       #if JUCE_LINUX || JUCE_BSD || JUCE_WASM
+         { Thread::Priority::highest,    0 },
+         { Thread::Priority::high,       0 },
+         { Thread::Priority::normal,     0 },
+diff --color -ruN a/modules/juce_core/system/juce_TargetPlatform.h b/modules/juce_core/system/juce_TargetPlatform.h
+--- a/modules/juce_core/system/juce_TargetPlatform.h	2026-10-07 16:16:07
++++ b/modules/juce_core/system/juce_TargetPlatform.h	2026-10-07 16:16:08
+@@ -218,6 +218,18 @@
+ #endif
+ 
+ //==============================================================================
++#if JUCE_WASM
++  // wasm is little endian, 32-bit pointers (wasm32) unless memory64 is in use.
++  #define JUCE_LITTLE_ENDIAN 1
++
++  #if defined (__wasm64__)
++    #define JUCE_64BIT 1
++  #else
++    #define JUCE_32BIT 1
++  #endif
++#endif
++
++//==============================================================================
+ // Compiler type macros.
+ 
+ #if defined (__clang__)
+diff --color -ruN a/modules/juce_data_structures/app_properties/juce_PropertiesFile.cpp b/modules/juce_data_structures/app_properties/juce_PropertiesFile.cpp
+--- a/modules/juce_data_structures/app_properties/juce_PropertiesFile.cpp	2026-10-07 16:16:07
++++ b/modules/juce_data_structures/app_properties/juce_PropertiesFile.cpp	2026-10-07 16:16:08
+@@ -98,7 +98,7 @@
+     if (folderName.isNotEmpty())
+         dir = dir.getChildFile (folderName);
+ 
+-   #elif JUCE_LINUX || JUCE_BSD || JUCE_ANDROID
++   #elif JUCE_LINUX || JUCE_BSD || JUCE_ANDROID || JUCE_WASM
+     auto dir = File (commonToAllUsers ? "/var" : "~")
+                       .getChildFile (folderName.isNotEmpty() ? folderName
+                                                              : ("." + applicationName));
+diff --color -ruN a/modules/juce_events/timers/juce_Timer.cpp b/modules/juce_events/timers/juce_Timer.cpp
+--- a/modules/juce_events/timers/juce_Timer.cpp	2026-10-07 16:16:07
++++ b/modules/juce_events/timers/juce_Timer.cpp	2026-10-07 16:16:08
+@@ -181,6 +181,12 @@
+ 
+     void callTimersSynchronously()
+     {
++       #if JUCE_WASM
++        // No timer thread on wasm: the host's frame callback advances the countdowns here.
++        const auto now = Time::getMillisecondCounter();
++        getTimeUntilFirstTimer ((int) (now - std::exchange (lastSynchronousCall, now)));
++       #endif
++
+         callTimers();
+     }
+ 
+@@ -188,8 +194,10 @@
+     {
+         const LockType::ScopedLockType sl (lock);
+ 
++       #if ! JUCE_WASM
+         if (! isThreadRunning())
+             startThread (Thread::Priority::high);
++       #endif
+ 
+         // Trying to add a timer that's already here - shouldn't get to this point,
+         // so if you get this assertion, let me know!
+@@ -250,6 +258,10 @@
+ 
+ private:
+     LockType lock;
++
++   #if JUCE_WASM
++    uint32 lastSynchronousCall = Time::getMillisecondCounter();
++   #endif
+ 
+     struct TimerCountdown
+     {
+diff --color -ruN a/modules/juce_gui_basics/juce_gui_basics.cpp b/modules/juce_gui_basics/juce_gui_basics.cpp
+--- a/modules/juce_gui_basics/juce_gui_basics.cpp	2026-10-07 16:16:07
++++ b/modules/juce_gui_basics/juce_gui_basics.cpp	2026-10-07 16:16:08
+@@ -255,6 +255,10 @@
+   #include "native/juce_ContentSharer_android.cpp"
+  #endif
+ 
++#elif JUCE_WASM
++ // Provided by the juce_webclap_ui module (single-threaded, canvas-backed platform layer).
++ #include <juce_webclap_ui/native/juce_wasm_Windowing.cpp>
++
+ #endif
+ 
+ //==============================================================================
+diff --color -ruN a/modules/juce_gui_basics/lookandfeel/juce_LookAndFeel.cpp b/modules/juce_gui_basics/lookandfeel/juce_LookAndFeel.cpp
+--- a/modules/juce_gui_basics/lookandfeel/juce_LookAndFeel.cpp	2026-10-07 16:16:07
++++ b/modules/juce_gui_basics/lookandfeel/juce_LookAndFeel.cpp	2026-10-07 16:16:08
+@@ -191,7 +191,7 @@
+ 
+ bool LookAndFeel::isUsingNativeAlertWindows()
+ {
+-   #if JUCE_LINUX || JUCE_BSD
++   #if JUCE_LINUX || JUCE_BSD || JUCE_WASM
+     return false; // not available currently
+    #else
+     return useNativeAlertWindows;

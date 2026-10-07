@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>OB-Xf</title>
+    <style>
+        html, body { margin: 0; padding: 0; background: #181818; overflow: hidden; }
+        canvas { display: block; outline: none; touch-action: none; }
+        #status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+                  color: #9a9a9a; font: 13px/1.4 system-ui, sans-serif; pointer-events: none; }
+    </style>
+</head>
+<body>
+<canvas id="editor" width="16" height="16"></canvas>
+<div id="status">Loading OB-Xf…</div>
+<script src="webclap-ui.js"></script>
+<script>
+    // The plugin's webview page. Everything except the debug messages below is the generic kit.
+    const status = document.getElementById("status")
+    const ui = startWebclapUI({
+        canvas: document.getElementById("editor"),
+        moduleUrl: "ui.js",
+        factory: "createWebclapUI",
+        onReady: info => {
+            status.remove()
+            // Test-harness only: a real host learns parameters from the DSP module. Sent as JSON, which
+            // hosts that only speak the binary protocol ignore.
+            window.parent.postMessage({webclapDebug: "ready", initMs: info.initMs, params: info.params,
+                width: info.width, height: info.height}, "*")
+        },
+        onStats: stats => window.parent.postMessage({webclapDebug: "stats", stats}, "*"),
+        onError: message => {
+            if (status.isConnected) status.textContent = "Error: " + message
+            window.parent.postMessage({webclapDebug: "error", message}, "*")
+        }
+    })
+    window.addEventListener("webclap-value-text", e => window.parent.postMessage({webclapDebug: "valueText", ...e.detail}, "*"))
+    window.addEventListener("message", e => {
+        if (e.source === window.parent && e.data && e.data.webclapDebug === "valueText")
+            ui.requestValueText(e.data.id, e.data.value)
+    })
+</script>
+</body>
+</html>

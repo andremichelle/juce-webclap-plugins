@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>OB-Xf WebCLAP UI prototype</title>
+    <link rel="stylesheet" href="host.css">
+</head>
+<body>
+<header>
+    <h1>OB-Xf <span>WebCLAP UI prototype · fake host, no audio</span></h1>
+    <div id="stats"></div>
+</header>
+<main>
+    <section id="window">
+        <div class="titlebar">
+            <span>Plugin window</span>
+            <span id="windowSize"></span>
+            <button id="reopen" title="Close and reopen the plugin window. The host answers hello with a snapshot.">Reopen</button>
+        </div>
+        <iframe id="plugin" src="plugin/index.html" title="OB-Xf editor"></iframe>
+    </section>
+    <aside>
+        <section>
+            <h2>Host (stands in for the DSP side)</h2>
+            <div class="row">
+                <label for="automate">Automate</label>
+                <select id="automate"></select>
+                <button id="automateToggle">Start</button>
+            </div>
+            <div class="row">
+                <button id="saveState" title="Remember the last state blob the UI sent">Store state</button>
+                <button id="recallState" title="Send the stored state blob to the UI" disabled>Recall state</button>
+                <span id="stateInfo" class="muted"></span>
+            </div>
+        </section>
+        <section class="grow">
+            <h2>Parameters <input id="filter" type="search" placeholder="Filter"></h2>
+            <div id="params" class="scroll"></div>
+        </section>
+        <section class="grow">
+            <h2>Messages <span id="counts" class="muted"></span><button id="clearLog">Clear</button></h2>
+            <div id="log" class="scroll mono"></div>
+        </section>
+    </aside>
+</main>
+<script src="host.js"></script>
+</body>
+</html>

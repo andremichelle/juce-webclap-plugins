@@ -1,0 +1,2 @@
+# Patches must keep the CRLF lines of the JUCE files they touch.
+*.patch -text

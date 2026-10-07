@@ -1,0 +1,5 @@
+# Third-party sources, fetched by scripts/fetch-deps.py
+/external/
+/build/
+.idea/
+.DS_Store
