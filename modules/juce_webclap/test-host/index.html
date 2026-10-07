@@ -3,12 +3,13 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>OB-Xf WebCLAP UI prototype</title>
+    <title>WebCLAP Test Host</title>
     <link rel="stylesheet" href="host.css">
 </head>
 <body>
 <header>
-    <h1>OB-Xf <span>WebCLAP UI prototype · fake host, no audio</span></h1>
+    <h1 id="title">WebCLAP test host <span>loading…</span></h1>
+    <button id="audio" title="Browsers start audio only after a click">Start audio</button>
     <div id="stats"></div>
 </header>
 <main>
@@ -16,23 +17,29 @@
         <div class="titlebar">
             <span>Plugin window</span>
             <span id="windowSize"></span>
-            <button id="reopen" title="Close and reopen the plugin window. The host answers hello with a snapshot.">Reopen</button>
+            <button id="reopen" title="Close and reopen the plugin window (gui destroy, create, new page). The page says hello and gets a snapshot.">Reopen</button>
         </div>
-        <iframe id="plugin" src="plugin/index.html" title="OB-Xf editor"></iframe>
+        <iframe id="plugin" title="Plugin editor"></iframe>
+        <div id="keyboard" title="Notes: click, or the computer keys A W S E D F T G Y H U J K (Z/X octave)"></div>
     </section>
     <aside>
         <section>
-            <h2>Host (stands in for the DSP side)</h2>
+            <h2>Host</h2>
             <div class="row">
                 <label for="automate">Automate</label>
                 <select id="automate"></select>
                 <button id="automateToggle">Start</button>
             </div>
             <div class="row">
-                <button id="saveState" title="Remember the last state blob the UI sent">Store state</button>
-                <button id="recallState" title="Send the stored state blob to the UI" disabled>Recall state</button>
+                <button id="saveState" title="clap.state save">Save state</button>
+                <button id="loadState" title="clap.state load of the saved state" disabled>Load state</button>
                 <span id="stateInfo" class="muted"></span>
             </div>
+            <div class="row">
+                <label><input id="callbacks" type="checkbox" checked> Host calls on_main_thread</label>
+                <span class="muted" title="Off: behave like a host that ignores request_callback. The plugin then sends page updates from process.">(off tests the fallback)</span>
+            </div>
+            <div id="midi" class="row muted"></div>
         </section>
         <section class="grow">
             <h2>Parameters <input id="filter" type="search" placeholder="Filter"></h2>

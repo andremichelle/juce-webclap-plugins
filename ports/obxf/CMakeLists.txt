@@ -1,7 +1,8 @@
-# OB-Xf editor as ui.wasm, for the JUCE WebCLAP plugins port. Configure with emcmake, see scripts/build-obxf.sh.
+# OB-Xf as a WebCLAP bundle: module.wasm (DSP, CLAP entry) and ui/ui.wasm (the editor). Configure with emcmake,
+# see scripts/build-obxf.sh. The bundle lands in web/obxf.wclap, next to the test host page.
 
 cmake_minimum_required(VERSION 3.20)
-project(obxf-webclap-ui LANGUAGES C CXX)
+project(obxf-webclap LANGUAGES C CXX)
 
 if(NOT EMSCRIPTEN)
     message(FATAL_ERROR "Configure with emcmake (Emscripten toolchain)")
@@ -16,6 +17,7 @@ set(EXT "${KIT_ROOT}/external")
 set(JUCE_MODULES "${EXT}/JUCE/modules")
 set(OBXF "${EXT}/OB-Xf")
 set(OBXF_INSTALLER "${OBXF}/assets/installer/Surge Synth Team/OB-Xf")
+set(BUNDLE "${CMAKE_BINARY_DIR}/web/obxf.wclap")
 
 option(OBXF_WEB_PNG_THEME "Package the bitmap Default theme (about 9 MB) besides the embedded vector theme" ON)
 
@@ -56,12 +58,8 @@ set(JUCE_DEFINITIONS
     JUCE_MODULE_AVAILABLE_juce_core=1
     JUCE_MODULE_AVAILABLE_juce_events=1
     JUCE_MODULE_AVAILABLE_juce_data_structures=1
-    JUCE_MODULE_AVAILABLE_juce_graphics=1
-    JUCE_MODULE_AVAILABLE_juce_gui_basics=1
     JUCE_MODULE_AVAILABLE_juce_audio_basics=1
-    JUCE_MODULE_AVAILABLE_juce_audio_processors=1
     JUCE_MODULE_AVAILABLE_juce_audio_processors_headless=1
-    JUCE_MODULE_AVAILABLE_juce_dsp=1
     JUCE_USE_CURL=0
     JUCE_WEB_BROWSER=0
     JUCE_USE_FREETYPE=0
@@ -95,8 +93,15 @@ set(JUCE_DEFINITIONS
     JucePlugin_Build_LV2=0
     NDEBUG=1)
 
+set(JUCE_GUI_DEFINITIONS
+    JUCE_MODULE_AVAILABLE_juce_graphics=1
+    JUCE_MODULE_AVAILABLE_juce_gui_basics=1
+    JUCE_MODULE_AVAILABLE_juce_audio_processors=1
+    JUCE_MODULE_AVAILABLE_juce_dsp=1)
+
 # ---------------------------------------------------------------------------------------------------------------
-# JUCE, with the wasm platform layer from juce_webclap
+# JUCE, with the wasm platform layer from juce_webclap. juce_wasm for the editor, juce_wasm_dsp (no GUI) for the
+# DSP module.
 
 add_library(juce_wasm STATIC
     "${KIT_ROOT}/modules/juce_webclap/juce_core_wasm.cpp"
@@ -112,14 +117,27 @@ add_library(juce_wasm STATIC
     "${KIT_ROOT}/modules/juce_webclap/juce_graphics_wasm.cpp"
     "${KIT_ROOT}/modules/juce_webclap/juce_gui_basics_wasm.cpp")
 target_include_directories(juce_wasm PUBLIC "${JUCE_MODULES}" "${KIT_ROOT}/modules")
-target_compile_definitions(juce_wasm PUBLIC ${JUCE_DEFINITIONS})
+target_compile_definitions(juce_wasm PUBLIC ${JUCE_DEFINITIONS} ${JUCE_GUI_DEFINITIONS})
 target_compile_options(juce_wasm PUBLIC ${COMMON_FLAGS})
 target_compile_options(juce_wasm PRIVATE -w)
 
-# ---------------------------------------------------------------------------------------------------------------
-# OB-Xf: engine (the stand-in processor) and editor, unchanged sources
+add_library(juce_wasm_dsp STATIC
+    "${KIT_ROOT}/modules/juce_webclap/juce_core_wasm.cpp"
+    "${JUCE_MODULES}/juce_core/juce_core_CompilationTime.cpp"
+    "${JUCE_MODULES}/juce_data_structures/juce_data_structures.cpp"
+    "${JUCE_MODULES}/juce_audio_basics/juce_audio_basics.cpp"
+    "${JUCE_MODULES}/juce_audio_processors_headless/juce_audio_processors_headless.cpp"
+    "${KIT_ROOT}/modules/juce_webclap/juce_events_wasm.cpp")
+target_include_directories(juce_wasm_dsp PUBLIC "${JUCE_MODULES}" "${KIT_ROOT}/modules")
+target_compile_definitions(juce_wasm_dsp PUBLIC ${JUCE_DEFINITIONS})
+target_compile_options(juce_wasm_dsp PUBLIC ${COMMON_FLAGS})
+target_compile_options(juce_wasm_dsp PRIVATE -w)
 
-set(OBXF_SOURCES
+# ---------------------------------------------------------------------------------------------------------------
+# OB-Xf, unchanged sources: the processor in both modules (in ui.wasm as the editor's stand-in), the editor only in
+# ui.wasm
+
+set(OBXF_PROCESSOR_SOURCES
     "${OBXF}/src/ObxfProcessor.cpp"
     "${OBXF}/src/Utils.cpp"
     "${OBXF}/src/state/StateManager.cpp"
@@ -127,6 +145,12 @@ set(OBXF_SOURCES
     "${OBXF}/src/midi/MidiHandler.cpp"
     "${OBXF}/src/parameter/ParameterUpdateHandler.cpp"
     "${OBXF}/src/parameter/ParameterCoordinator.cpp"
+    shim/sst_plugininfra_wasm.cpp
+    shim/version_information.cpp
+    "${EXT}/sst-plugininfra/libs/strnatcmp/strnatcmp.cpp"
+    "${EXT}/MTS-ESP/Client/libMTSClient.cpp")
+
+set(OBXF_EDITOR_SOURCES
     "${OBXF}/src/utilities/KeyCommandHandler.cpp"
     "${OBXF}/src/components/ScalingImageCache.cpp"
     "${OBXF}/src/editor/ObxfEditorLayout.cpp"
@@ -137,18 +161,7 @@ set(OBXF_SOURCES
     "${OBXF}/src/ObxfEditor.cpp"
     "${OBXF}/src/gui/LookAndFeel.cpp")
 
-add_executable(ui
-    ui_main.cpp
-    ${OBXF_SOURCES}
-    shim/sst_plugininfra_wasm.cpp
-    shim/version_information.cpp
-    "${EXT}/sst-plugininfra/libs/strnatcmp/strnatcmp.cpp"
-    "${EXT}/MTS-ESP/Client/libMTSClient.cpp"
-    "${GENERATED}/BinaryData.cpp"
-    "${GENERATED}/WebFonts.cpp")
-
-target_include_directories(ui PRIVATE
-    "${GENERATED}"
+set(OBXF_INCLUDE_DIRECTORIES
     "${CMAKE_CURRENT_LIST_DIR}/shim"
     "${OBXF}/src"
     "${OBXF}/src/components"
@@ -170,11 +183,24 @@ target_include_directories(ui PRIVATE
     "${EXT}/simde"
     "${EXT}/MTS-ESP/Client")
 
-target_compile_definitions(ui PRIVATE
+set(OBXF_DEFINITIONS
     FMT_HEADER_ONLY=1
     SST_PLUGININFRA_HAS_VERSION_INFORMATION=1
     OBXF_VERSION_STR="1.1.0"
     SIMDE_ENABLE_NATIVE_ALIASES=1)
+
+# ---------------------------------------------------------------------------------------------------------------
+# ui.wasm: editor + stand-in processor
+
+add_executable(ui
+    ui_main.cpp
+    ${OBXF_PROCESSOR_SOURCES}
+    ${OBXF_EDITOR_SOURCES}
+    "${GENERATED}/BinaryData.cpp"
+    "${GENERATED}/WebFonts.cpp")
+
+target_include_directories(ui PRIVATE "${GENERATED}" ${OBXF_INCLUDE_DIRECTORIES})
+target_compile_definitions(ui PRIVATE ${OBXF_DEFINITIONS})
 target_compile_options(ui PRIVATE -Wno-deprecated-declarations -Wno-macro-redefined)
 target_link_libraries(ui PRIVATE juce_wasm)
 
@@ -211,4 +237,37 @@ list(APPEND UI_LINK_OPTIONS "SHELL:--preload-file ${FACTORY_DIR}@/factory")
 target_link_options(ui PRIVATE ${UI_LINK_OPTIONS})
 set_target_properties(ui PROPERTIES
     SUFFIX ".js"
-    RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/web/plugin")
+    RUNTIME_OUTPUT_DIRECTORY "${BUNDLE}/ui")
+
+# ---------------------------------------------------------------------------------------------------------------
+# module.wasm: the processor as a CLAP plugin. A standalone wasm module (no Emscripten JS), exporting clap_entry,
+# malloc and the function table, importing only WASI.
+
+# ObxfProcessor.cpp includes the editor's header even when headless, hence the generated BinaryData.h (only the
+# header, nothing from it is linked).
+add_executable(module
+    dsp_main.cpp
+    shim/colour_headless.cpp
+    "${KIT_ROOT}/modules/juce_webclap/juce_webclap_clap.cpp"
+    "${KIT_ROOT}/modules/juce_webclap/juce_webclap_standalone.cpp"
+    ${OBXF_PROCESSOR_SOURCES}
+    "${GENERATED}/BinaryData.h")
+
+target_include_directories(module PRIVATE "${GENERATED}" ${OBXF_INCLUDE_DIRECTORIES} "${EXT}/clap/include")
+target_compile_definitions(module PRIVATE ${OBXF_DEFINITIONS} OBXF_HEADLESS=1)
+target_compile_options(module PRIVATE -Wno-deprecated-declarations -Wno-macro-redefined)
+target_link_libraries(module PRIVATE juce_wasm_dsp)
+target_link_options(module PRIVATE
+    ${COMMON_FLAGS}
+    -sSTANDALONE_WASM=1
+    --no-entry
+    -sEXPORTED_FUNCTIONS=_malloc,_free
+    -Wl,--export=clap_entry
+    -sALLOW_MEMORY_GROWTH=1
+    -sINITIAL_MEMORY=32MB
+    -sSTACK_SIZE=1MB
+    -sALLOW_TABLE_GROWTH=1
+    -sERROR_ON_UNDEFINED_SYMBOLS=1)
+set_target_properties(module PROPERTIES
+    SUFFIX ".wasm"
+    RUNTIME_OUTPUT_DIRECTORY "${BUNDLE}")

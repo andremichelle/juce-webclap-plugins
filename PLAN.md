@@ -3,8 +3,9 @@
 Run the editor of an existing JUCE plugin as the UI of a WebCLAP plugin, drawn into a canvas, while the
 plugin's audio code runs as an ordinary WebCLAP somewhere else. The UI never runs on the audio thread.
 
-Status: UI-side prototype with OB-Xf works (phases 0 and 1 without a DSP module), see "Prototype findings" and
-README.md. Written 2026-10-07.
+Status: OB-Xf runs as a complete WebCLAP bundle (phases 0 and 1): `module.wasm` plays in an AudioWorklet test
+host, its unmodified editor runs as `ui.wasm` in the webview page, parameters, gestures and state round-trip. Not
+yet tried in openDAW (phase 2). See "Prototype findings", "DSP module findings" and README.md. Written 2026-10-07.
 
 ## Goal
 
@@ -85,7 +86,8 @@ A small piece compiled into `module.wasm`, implementing `clap.webview`:
 - `receive()` decodes UI messages: parameter value and gesture become CLAP parameter changes the plugin applies
   in its next process/flush, state messages are applied between process calls.
 - Parameter changes coming from automation or the host, and state changes (preset load), are sent back with
-  `host.send()`. Rate-limited: at most one value per parameter per UI frame.
+  `host.send()` from `on_main_thread` after `host->request_callback()`. A host that never calls back gets them
+  from `process()` instead, at most 30 times a second (the module has no threads, so it is the same thread).
 - Streams for meters, scopes and waveforms: the DSP writes into a ring buffer during process, the bridge drains
   it at UI rate (when the page asks, never from process).
 
@@ -189,8 +191,44 @@ no audio). Measured in Chrome on an Apple Silicon Mac:
   transferred OffscreenCanvas with `putImageData` per dirty rectangle (under 1 ms even for full frames).
 - **Hidden pages** get no animation frames; the page falls back to a slow timer so protocol traffic continues.
 
-Not done yet: a real DSP module and host (phases 1–2), streams, IME/text input beyond key events, persistent
+Not done yet: openDAW (phase 2), streams, IME/text input beyond key events, persistent
 `/user` storage (settings and saved patches live in memory), keyboard focus polish, size tuning.
+
+## DSP module findings (OB-Xf, 2026-10-07)
+
+`modules/juce_webclap/juce_webclap_clap.cpp` wraps any `juce::AudioProcessor` as a CLAP plugin (params, state,
+audio and note ports, tail, gui with the webview API, webview). OB-Xf's processor compiles unchanged with
+`OBXF_HEADLESS`, against a GUI-free JUCE (core, events, data_structures, audio_basics,
+audio_processors_headless).
+
+- **Standalone wasm.** `-sSTANDALONE_WASM --no-entry` gives `_initialize`, `memory`, `malloc` and the growable
+  `__indirect_function_table`; `clap_entry` is exported with `-Wl,--export=clap_entry`. Emscripten still imports
+  `env.emscripten_notify_memory_growth` and seven `env.__syscall_*` file calls, which WebCLAP hosts do not
+  provide. `juce_webclap_standalone.cpp` defines them, so the module imports only WASI.
+- **Traps found by running it:** Emscripten's standalone `getentropy()` calls `abort()` (it kills
+  `std::random_device`, used by OB-Xf's randomizer), replaced with WASI `random_get`. JUCE's POSIX
+  `InterProcessLock` retries forever when it cannot create its lock file, patched to succeed on wasm (no other
+  process exists). A WASI monotonic clock that stands still during a call (`currentTime` in a worklet) makes
+  such loops spin forever too, so hosts should use the wall clock.
+- **No message thread.** `callAsync` and `Timer::callAfterDelay` (OB-Xf defers patch application by 50 ms) work
+  because the wrapper pumps JUCE's queue and timers in process, flush, receive and on_main_thread.
+- **Who changed a parameter** decides where it goes: host events go to the page, page edits go to the host as
+  output events (with gestures), plugin-internal changes go to both. The DSP never sends the page a state on
+  its own, only in snapshots (hello, host state load): two processors sending each other states reload each
+  other's patches.
+- **Echoes.** After applying a remote state the editor's processor re-sets values (rounded) and reports a state
+  change. The UI bridge stays quiet for 300 ms after a remote state, then takes its own serialisation as what
+  the DSP has. Without that, reopening the window sent the state back and the host saw a parameter change.
+- **Parameter text** is `getText()` only: OB-Xf includes the unit, in its own scale ("6.56 s" for a ms label).
+- **Cost.** `module.wasm` 2.5 MB (0.8 MB gzipped). Loads in about 135 ms in Node, a held note costs under 1 % of
+  one core in real time.
+- **No factory folder in the DSP.** A fresh instance starts on OB-Xf's init values, not its default patch (the
+  editor then shows "Init"). Embedding the default patch would match the desktop plugin.
+
+`modules/juce_webclap/test-host` is a generic host for any port: `clap-host-worklet.js` is a single-threaded CLAP
+host in an AudioWorklet (WASI shim, host callbacks through generated wasm trampolines, events, state, gui,
+webview), the page relays the webview, shows parameters, automates one, saves and loads state, plays notes
+(screen, computer keys, Web MIDI) and can ignore `request_callback` to test the fallback.
 
 ## Open questions
 

@@ -56,3 +56,15 @@ select { max-width: 220px; }
     aside { min-width: 0; }
     aside section.grow { min-height: 260px; }
 }
+
+#audio { margin-left: auto; }
+#audio.on { border-color: var(--in); color: var(--in); }
+#log .host { color: var(--accent); }
+.module { margin: 8px 0 2px; font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+
+#keyboard { display: flex; position: relative; height: 64px; margin-top: 8px; user-select: none; touch-action: none; }
+#keyboard .white { flex: 1; background: #d8dadd; border: 1px solid #555; border-radius: 0 0 3px 3px; }
+#keyboard .black { width: 0; z-index: 1; position: relative; }
+#keyboard .black::after { content: ""; position: absolute; left: -6px; width: 12px; height: 40px; background: #222; border-radius: 0 0 2px 2px; }
+#keyboard .white.down { background: var(--accent); }
+#keyboard .black.down::after { background: var(--accent); }

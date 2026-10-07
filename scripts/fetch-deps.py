@@ -56,6 +56,7 @@ DEPS = [
     ("simde", "simd-everywhere/simde", "71fd833d9666141edcd1d3c109a80e228303d8d7", lambda p: p.startswith("simde/")),
     ("ghc-filesystem", "gulrak/filesystem", "614bbe87b80435d87ab8791564370e0c1d13627d",
      lambda p: p == "include/ghc/filesystem.hpp"),
+    ("clap", "free-audio/clap", "a47f6badb49d948fd009998f28309cdab78979c9", lambda p: p.startswith("include/")),
     ("MTS-ESP", "oddsound/MTS-ESP", "ce3f30e812744d8319313d80b92781bc3bcf4e18", lambda p: p.startswith("Client/")),
 ]
 

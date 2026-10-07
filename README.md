@@ -3,8 +3,9 @@
 Open-source JUCE plugins ported to WebCLAP, and the kit that ports them: `modules/juce_webclap` runs a JUCE editor
 in a browser canvas as the UI of a WebCLAP plugin. See [PLAN.md](PLAN.md) for the design.
 
-Ports live in `ports/`. The first is [OB-Xf](https://github.com/surge-synthesizer/OB-Xf): its unmodified editor
-runs as `ui.wasm`, connected to a fake host page that plays the DSP side. There is no audio yet.
+Ports live in `ports/`. The first is [OB-Xf](https://github.com/surge-synthesizer/OB-Xf), built as a WebCLAP
+bundle: `module.wasm` (the processor, unchanged, as a CLAP plugin) and `ui/` (its unmodified editor as `ui.wasm`).
+A test host page runs the module in an AudioWorklet and shows the editor in its plugin window.
 
 ## Build and run
 
@@ -19,36 +20,46 @@ open http://127.0.0.1:8123/
 A clean build takes about 12 minutes, mostly the large JUCE unity files. `-DOBXF_WEB_PNG_THEME=OFF` (passed to the build
 script) drops the 9 MB bitmap theme and keeps only OB-Xf's embedded vector theme.
 
+The bundle lands in `build/obxf/web/obxf.wclap` (`module.wasm`, `ui/`), the test host next to it. Any port's bundle
+opens with `?bundle=<dir>`.
+
 ## What to try
 
-- Turn knobs, flip switches, drag sliders. The message log shows `gesture` begin, `param` values (at most one
-  per parameter per frame) and `gesture` end.
+- **Start audio** (browsers need a click), then play notes on the on-screen keyboard, the computer keys
+  A W S E D F T G Y H U J K (Z/X change octave) or a MIDI keyboard.
+- Turn knobs in the editor. The log shows the page's `gesture` begin, `param` values (at most one per parameter
+  per frame) and `gesture` end, then the same as CLAP output events the host received.
 - **Automate** moves a parameter from the host side at 30 Hz. The editor's knob follows, nothing echoes back.
-- Parameter sliders in the side panel send single values the same way.
-- BROWSE, PREV/NEXT load factory patches (packaged into Emscripten's filesystem at `/factory`). The editor sends
-  the changed parameters and the new state blob.
-- **Reopen** closes and reloads the plugin window. The host answers `hello` with a snapshot (values + state) and
-  the editor comes back on the same patch.
-- **Store state / Recall state** sends a stored state blob to the editor.
-- MENU → Zoom resizes the editor. It sends `resize`, the host resizes the window frame.
-- MENU → Themes switches between the bitmap and the vector theme.
+  The parameter sliders in the side panel send single values the same way.
+- BROWSE, PREV/NEXT load factory patches (packaged with the page at `/factory`). The editor sends the changed
+  parameters and the new state blob, the sound changes.
+- **Reopen** destroys and recreates the plugin window. The page says `hello`, the DSP answers with a snapshot
+  (values + state) and the editor comes back on the same patch.
+- **Save state / Load state** is `clap.state`. Load sends the editor a snapshot.
+- **Host calls on_main_thread** off behaves like a host that ignores `request_callback`: the plugin then sends
+  page updates from `process()`.
+- MENU → Zoom resizes the editor. It sends `resize`, the plugin asks the host with `request_resize`.
 
 ## Layout
 
 ```
 modules/juce_webclap/             the kit
   juce_webclap.h                  C++ API for the embedding ui.wasm (frame, input, framebuffer)
-  juce_webclap_bridge.h           UI side of the message protocol (ProcessorBridge)
+  juce_webclap_protocol.h         the split-UI message frames, shared by both sides
+  juce_webclap_bridge.h           UI side of the protocol (ProcessorBridge)
+  juce_webclap_clap.h/.cpp        DSP side: any juce::AudioProcessor as a WebCLAP plugin (module.wasm)
+  juce_webclap_standalone.cpp     keeps module.wasm free of Emscripten "env" imports
   juce_*_wasm.cpp                 JUCE module unity files with the wasm natives appended
   native/                         message loop, windowing + compositor, fonts, files
   js/webclap-ui.js                page glue: worker, OffscreenCanvas, input, host relay
   js/webclap-ui-worker.js         runs ui.wasm, paints dirty rectangles
+  test-host/                      a WebCLAP host page for testing ports (AudioWorklet CLAP host)
 patches/juce-8-wasm.patch         small JUCE changes (timer without thread, wasm gaps)
-ports/obxf/                       OB-Xf as ui.wasm: CMake build, sst-plugininfra shim, test pages
+ports/obxf/                       OB-Xf: CMake build of both modules, the bundle page (ui/), shims
 scripts/                          fetch-deps.py, build-obxf.sh, binary_data.py, serve.py
 ```
 
 ## Licenses
 
-The kit is meant to be MIT, each port keeps its plugin's license. JUCE is AGPLv3/commercial, OB-Xf is GPL-3.0-or-later, DejaVu fonts are under the
+The kit is meant to be MIT, each port keeps its plugin's license. JUCE is AGPLv3/commercial, OB-Xf is GPL-3.0-or-later, the CLAP headers are MIT, DejaVu fonts are under the
 Bitstream Vera license; none of them is checked in, `scripts/fetch-deps.py` downloads them.

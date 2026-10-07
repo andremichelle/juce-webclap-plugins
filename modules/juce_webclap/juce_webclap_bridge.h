@@ -5,101 +5,37 @@
     and turns parameter changes, gestures and state changes into binary frames for the DSP side, and applies
     frames from the DSP side (automation, preset loads) back to the stand-in, so attachments update the editor.
 
-    Frames are little endian: u8 type, u8 flags, u16 reserved, payload.
-
-        hello     UI -> DSP   u32 protocol version
-        snapshot  DSP -> UI   u32 count, count * (u32 clapId, f64 value), u32 stateSize, state bytes
-        param     both        u32 clapId, f64 value (normalised 0..1)
-        gesture   UI -> DSP   u32 clapId, u8 1 = begin, 0 = end
-        state     both        opaque blob (AudioProcessor::getStateInformation)
-        stream    DSP -> UI   u16 streamId, samples
-        resize    UI -> DSP   u32 width, u32 height (logical pixels)
+    The frames are defined in juce_webclap_protocol.h.
 
     Parameter ids are CLAP ids. For JUCE parameters with an id this is the id's String::hashCode(), which is
     what clap-juce-extensions uses, so a host that automates CLAP ids talks about the same parameters.
 
-    Depends on juce_audio_processors. Header-only, include it in the app.
+    Depends on juce_audio_processors_headless. Header-only, include it in the app.
 */
 
 #pragma once
 
-#include <juce_audio_processors/juce_audio_processors.h>
+#include <juce_audio_processors_headless/juce_audio_processors_headless.h>
+
+#include "juce_webclap_protocol.h"
 
 #include <cstring>
 #include <functional>
 #include <map>
+#include <set>
 #include <unordered_map>
 #include <vector>
 
 namespace juce::webclap
 {
 
-namespace protocol
+/** The CLAP id of a JUCE parameter, the same on the UI and the DSP side. */
+inline uint32 clapIdFor (const AudioProcessorParameter& parameter)
 {
-    enum Type : uint8
-    {
-        hello    = 1,
-        snapshot = 2,
-        param    = 3,
-        gesture  = 4,
-        state    = 5,
-        stream   = 6,
-        resize   = 7
-    };
+    if (const auto* withId = dynamic_cast<const AudioProcessorParameterWithID*> (&parameter))
+        return (uint32) withId->paramID.hashCode();
 
-    constexpr uint32 version = 1;
-
-    /** Set on param/state frames the UI sends to seed a DSP side that has no values yet (empty snapshot). */
-    constexpr uint8 flagSync = 1;
-
-    struct Writer
-    {
-        explicit Writer (Type type, uint8 flags = 0) { u8 (type); u8 (flags); u16 (0); }
-
-        void u8 (uint8 v)   { bytes.push_back (v); }
-        void u16 (uint16 v) { put (&v, sizeof (v)); }
-        void u32 (uint32 v) { put (&v, sizeof (v)); }
-        void f64 (double v) { put (&v, sizeof (v)); }
-
-        // wasm is little endian, so memcpy produces the wire format
-        void put (const void* data, size_t size)
-        {
-            const auto* p = static_cast<const uint8*> (data);
-            bytes.insert (bytes.end(), p, p + size);
-        }
-
-        std::vector<uint8> bytes;
-    };
-
-    struct Reader
-    {
-        Reader (const void* data, size_t size) : p (static_cast<const uint8*> (data)), end (p + size) {}
-
-        bool has (size_t n) const { return (size_t) (end - p) >= n; }
-
-        template <typename T>
-        T get()
-        {
-            T v {};
-
-            if (has (sizeof (T)))
-            {
-                std::memcpy (&v, p, sizeof (T));
-                p += sizeof (T);
-            }
-            else
-            {
-                p = end;
-                ok = false;
-            }
-
-            return v;
-        }
-
-        const uint8* p;
-        const uint8* end;
-        bool ok = true;
-    };
+    return (uint32) parameter.getParameterIndex();
 }
 
 //==============================================================================
@@ -122,13 +58,7 @@ public:
         processor.removeListener (this);
     }
 
-    static uint32 clapIdFor (const AudioProcessorParameter& parameter)
-    {
-        if (const auto* withId = dynamic_cast<const AudioProcessorParameterWithID*> (&parameter))
-            return (uint32) withId->paramID.hashCode();
-
-        return (uint32) parameter.getParameterIndex();
-    }
+    static uint32 clapIdFor (const AudioProcessorParameter& parameter) { return webclap::clapIdFor (parameter); }
 
     AudioProcessorParameter* findParameter (uint32 clapId) const
     {
@@ -230,10 +160,20 @@ public:
             }
         }
 
+        // After a remote state, the plugin settles: deferred patch application re-sets values (rounded) and
+        // reports a state change. That is the state the DSP side just sent, so it is not sent back. Values the
+        // user drags meanwhile (inside a gesture) still go out.
+        const auto settling = settleUntil != 0 && (int32) (Time::getMillisecondCounter() - settleUntil) < 0;
+
         for (const auto& event : pending)
         {
             if (event.isGesture)
             {
+                if (event.begin)
+                    activeGestures.insert (event.id);
+                else
+                    activeGestures.erase (event.id);
+
                 protocol::Writer w (protocol::gesture);
                 w.u32 (event.id);
                 w.u8 (event.begin ? 1 : 0);
@@ -241,6 +181,9 @@ public:
             }
             else
             {
+                if (settling && activeGestures.count (event.id) == 0)
+                    continue;
+
                 // Plugins often re-apply values they were just given (deferred patch application, attachments
                 // syncing). Values the DSP side already has are not news.
                 if (const auto known = remoteValues.find (event.id);
@@ -257,6 +200,22 @@ public:
 
         pending.clear();
         pendingValue.clear();
+
+        if (settling)
+        {
+            stateChanged = false;
+            return;
+        }
+
+        if (std::exchange (settleUntil, 0u) != 0)
+        {
+            // Settled: what the stand-in holds now is what the DSP side has.
+            for (auto& [id, parameter] : parametersById)
+                remoteValues[id] = parameter->getValue();
+
+            processor.getStateInformation (remoteState);
+            stateChanged = false;
+        }
 
         if (std::exchange (stateChanged, false))
             sendState (0);
@@ -319,6 +278,7 @@ private:
     {
         remoteState = MemoryBlock (data, size);
         processor.setStateInformation (data, (int) size);
+        settleUntil = jmax (1u, Time::getMillisecondCounter() + settleMilliseconds);
 
         if (onRemoteState)
             onRemoteState();
@@ -376,6 +336,9 @@ private:
     std::map<uint32, size_t> pendingValue;
     std::unordered_map<uint32, double> remoteValues; // what the DSP side has, as far as we know
     MemoryBlock remoteState;
+    std::set<uint32> activeGestures;
+    uint32 settleUntil = 0; // millisecond counter, 0 = not settling
+    static constexpr uint32 settleMilliseconds = 300;
     bool applyingRemote = false, stateChanged = false, needsSync = false;
     int snapshotsReceived = 0;
 };

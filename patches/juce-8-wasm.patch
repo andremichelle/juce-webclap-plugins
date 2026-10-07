@@ -20,6 +20,25 @@ diff --color -ruN a/modules/juce_core/juce_core.cpp b/modules/juce_core/juce_cor
    #include <stdio.h>
    #include <sys/types.h>
    #include <sys/socket.h>
+diff --color -ruN a/modules/juce_core/native/juce_SharedCode_posix.h b/modules/juce_core/native/juce_SharedCode_posix.h
+--- a/modules/juce_core/native/juce_SharedCode_posix.h	2026-10-07 16:16:07
++++ b/modules/juce_core/native/juce_SharedCode_posix.h	2026-10-07 16:16:08
+@@ -720,13 +720,13 @@
+ #endif
+ 
+ //==============================================================================
+-#if JUCE_IOS
++#if JUCE_IOS || JUCE_WASM
+ class InterProcessLock::Pimpl
+ {
+ public:
+     Pimpl (const String&, int)  {}
+ 
+-    int handle = 1, refCount = 1;  // on iOS just fake success
++    int handle = 1, refCount = 1;  // on iOS just fake success, on wasm there is no other process
+ };
+ 
+ #else
 diff --color -ruN a/modules/juce_core/native/juce_ThreadPriorities_native.h b/modules/juce_core/native/juce_ThreadPriorities_native.h
 --- a/modules/juce_core/native/juce_ThreadPriorities_native.h	2026-10-07 16:16:07
 +++ b/modules/juce_core/native/juce_ThreadPriorities_native.h	2026-10-07 16:16:08
