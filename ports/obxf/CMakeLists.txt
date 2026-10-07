@@ -1,4 +1,4 @@
-# OB-Xf editor as ui.wasm, for the WebCLAP UI kit prototype. Configure with emcmake, see scripts/build-obxf.sh.
+# OB-Xf editor as ui.wasm, for the JUCE WebCLAP plugins port. Configure with emcmake, see scripts/build-obxf.sh.
 
 cmake_minimum_required(VERSION 3.20)
 project(obxf-webclap-ui LANGUAGES C CXX)
@@ -96,10 +96,10 @@ set(JUCE_DEFINITIONS
     NDEBUG=1)
 
 # ---------------------------------------------------------------------------------------------------------------
-# JUCE, with the wasm platform layer from juce_webclap_ui
+# JUCE, with the wasm platform layer from juce_webclap
 
 add_library(juce_wasm STATIC
-    "${KIT_ROOT}/modules/juce_webclap_ui/juce_core_wasm.cpp"
+    "${KIT_ROOT}/modules/juce_webclap/juce_core_wasm.cpp"
     "${JUCE_MODULES}/juce_core/juce_core_CompilationTime.cpp"
     "${JUCE_MODULES}/juce_data_structures/juce_data_structures.cpp"
     "${JUCE_MODULES}/juce_graphics/juce_graphics_Harfbuzz.cpp"
@@ -108,9 +108,9 @@ add_library(juce_wasm STATIC
     "${JUCE_MODULES}/juce_audio_processors_headless/juce_audio_processors_headless.cpp"
     "${JUCE_MODULES}/juce_audio_processors/juce_audio_processors.cpp"
     "${JUCE_MODULES}/juce_dsp/juce_dsp.cpp"
-    "${KIT_ROOT}/modules/juce_webclap_ui/juce_events_wasm.cpp"
-    "${KIT_ROOT}/modules/juce_webclap_ui/juce_graphics_wasm.cpp"
-    "${KIT_ROOT}/modules/juce_webclap_ui/juce_gui_basics_wasm.cpp")
+    "${KIT_ROOT}/modules/juce_webclap/juce_events_wasm.cpp"
+    "${KIT_ROOT}/modules/juce_webclap/juce_graphics_wasm.cpp"
+    "${KIT_ROOT}/modules/juce_webclap/juce_gui_basics_wasm.cpp")
 target_include_directories(juce_wasm PUBLIC "${JUCE_MODULES}" "${KIT_ROOT}/modules")
 target_compile_definitions(juce_wasm PUBLIC ${JUCE_DEFINITIONS})
 target_compile_options(juce_wasm PUBLIC ${COMMON_FLAGS})

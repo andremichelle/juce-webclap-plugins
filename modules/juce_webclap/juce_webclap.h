@@ -1,5 +1,5 @@
 /*
-    juce_webclap_ui: run a JUCE editor in a browser canvas, single-threaded, with JUCE's software renderer.
+    juce_webclap: run a JUCE editor in a browser canvas, single-threaded, with JUCE's software renderer.
 
     The embedding app (the plugin's ui.wasm) exports a few C functions that call into this API:
 

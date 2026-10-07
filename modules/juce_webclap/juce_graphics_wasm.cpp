@@ -3,6 +3,6 @@
 #include <juce_graphics/juce_graphics.cpp>
 
 #if JUCE_WASM
- #include "juce_webclap_ui.h"
+ #include "juce_webclap.h"
  #include "native/juce_wasm_Fonts.cpp"
 #endif

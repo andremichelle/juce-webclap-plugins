@@ -1,4 +1,4 @@
-// juce_webclap_ui: the worker that runs ui.wasm and paints into the transferred OffscreenCanvas.
+// juce_webclap: the worker that runs ui.wasm and paints into the transferred OffscreenCanvas.
 //
 // The page drives it: one "frame" message per animation frame, and the next one only after this worker
 // answered "frameDone", so a slow frame never queues up more work. Input arrives as small messages.

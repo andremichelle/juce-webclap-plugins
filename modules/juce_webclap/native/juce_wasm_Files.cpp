@@ -1,5 +1,5 @@
 /*
-    juce_webclap_ui: juce_core natives for wasm that JUCE's wasm target does not provide.
+    juce_webclap: juce_core natives for wasm that JUCE's wasm target does not provide.
 
     Files live in Emscripten's in-memory filesystem. There are no threads: Thread::startThread fails,
     and code that needs a background thread has to be driven from the frame callback instead.

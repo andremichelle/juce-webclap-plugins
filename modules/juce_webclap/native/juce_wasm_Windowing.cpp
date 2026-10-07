@@ -1,5 +1,5 @@
 /*
-    juce_webclap_ui: windowing for the wasm platform layer.
+    juce_webclap: windowing for the wasm platform layer.
 
     The page's canvas is the whole desktop. Every top-level JUCE window (the editor, and popup menus, tooltips
     or alert windows that ask for their own window) gets a WasmComponentPeer that paints with the software
@@ -12,7 +12,7 @@
 */
 
 #include <emscripten.h>
-#include <juce_webclap_ui/juce_webclap_ui.h>
+#include <juce_webclap/juce_webclap.h>
 
 // Callbacks into the page. Module.webclapHost is installed by webclap-ui.js before the module starts.
 EM_JS (void, juce_webclap_js_set_cursor, (const char* name), {

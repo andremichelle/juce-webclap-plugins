@@ -112,8 +112,8 @@ diff --color -ruN a/modules/juce_gui_basics/juce_gui_basics.cpp b/modules/juce_g
   #endif
  
 +#elif JUCE_WASM
-+ // Provided by the juce_webclap_ui module (single-threaded, canvas-backed platform layer).
-+ #include <juce_webclap_ui/native/juce_wasm_Windowing.cpp>
++ // Provided by the juce_webclap module (single-threaded, canvas-backed platform layer).
++ #include <juce_webclap/native/juce_wasm_Windowing.cpp>
 +
  #endif
  

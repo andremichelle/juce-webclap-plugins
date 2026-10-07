@@ -1,4 +1,4 @@
-// juce_webclap_ui: page glue for the plugin's web page (the WebCLAP webview).
+// juce_webclap: page glue for the plugin's web page (the WebCLAP webview).
 //
 // Starts the worker that runs ui.wasm, hands it an OffscreenCanvas, forwards input, and relays protocol
 // frames between the worker and the host: out with window.parent.postMessage, in with "message" events.

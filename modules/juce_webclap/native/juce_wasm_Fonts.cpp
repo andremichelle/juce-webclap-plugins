@@ -1,5 +1,5 @@
 /*
-    juce_webclap_ui: fonts for the wasm platform layer.
+    juce_webclap: fonts for the wasm platform layer.
 
     There are no system fonts in a browser sandbox. Every typeface comes from memory: fonts registered by the
     kit at start (a default sans-serif) and fonts the editor creates with Typeface::createSystemTypefaceFor.

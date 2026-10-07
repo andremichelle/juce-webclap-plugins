@@ -1,5 +1,5 @@
 /*
-    juce_webclap_ui: the UI side of the split-UI message protocol (see PLAN.md, "Message protocol").
+    juce_webclap: the UI side of the split-UI message protocol (see PLAN.md, "Message protocol").
 
     The editor talks to a stand-in AudioProcessor in the UI module. ProcessorBridge listens to that processor
     and turns parameter changes, gestures and state changes into binary frames for the DSP side, and applies

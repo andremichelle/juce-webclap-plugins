@@ -1,4 +1,4 @@
-# JUCE WebCLAP UI kit
+# JUCE WebCLAP plugins
 
 Run the editor of an existing JUCE plugin as the UI of a WebCLAP plugin, drawn into a canvas, while the
 plugin's audio code runs as an ordinary WebCLAP somewhere else. The UI never runs on the audio thread.
@@ -49,7 +49,7 @@ messages.
 
 ## Components
 
-### 1. `juce_webclap_ui` (JUCE module, UI side)
+### 1. `juce_webclap` (JUCE module, UI side)
 
 - **Message loop.** No `MessageManager` thread exists. The page drives it: every animation frame calls an
   exported `tick(timestamp)` that runs pending async updates, fires due `juce::Timer`s and repaints.
@@ -166,7 +166,7 @@ plugin.wclap/
 OB-Xf's editor and processor, unmodified, run as `ui.wasm` in a worker against a fake host page (no DSP module,
 no audio). Measured in Chrome on an Apple Silicon Mac:
 
-- **JUCE builds under Emscripten** with the platform layer in `modules/juce_webclap_ui` plus a 130-line JUCE patch
+- **JUCE builds under Emscripten** with the platform layer in `modules/juce_webclap` plus a 130-line JUCE patch
   (`patches/juce-8-wasm.patch`). The patch covers the Timer (no thread, advanced by the frame callback) and gaps in
   JUCE's own wasm target: no `JUCE_LITTLE_ENDIAN` (broke every binary format, including fxp patches and JUCE's
   binary XML), missing `<emscripten.h>`, no thread-priority table, `PluginHostType`, `PropertiesFile`.

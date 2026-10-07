@@ -16,8 +16,8 @@
 
 #include <emscripten.h>
 
-#include <juce_webclap_ui/juce_webclap_ui.h>
-#include <juce_webclap_ui/juce_webclap_ui_bridge.h>
+#include <juce_webclap/juce_webclap.h>
+#include <juce_webclap/juce_webclap_bridge.h>
 
 #include "ObxfProcessor.h"
 #include "WebFonts.h"

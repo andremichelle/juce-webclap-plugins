@@ -1,5 +1,5 @@
 /*
-    juce_webclap_ui: message loop for the wasm platform layer.
+    juce_webclap: message loop for the wasm platform layer.
 
     There is no message thread to block on. Posted messages wait in a queue that the page drains once per
     animation frame (see webclap::tick). Timers are advanced in the same call (patched juce_Timer.cpp).
