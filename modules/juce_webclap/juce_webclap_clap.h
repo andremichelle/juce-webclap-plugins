@@ -13,9 +13,22 @@
     The port defines getClapPluginInfo() and createPluginFilter(), and compiles juce_webclap_clap.cpp with the
     JUCE modules juce_core (juce_core_wasm.cpp), juce_events (juce_events_wasm.cpp), juce_data_structures,
     juce_audio_basics and juce_audio_processors_headless. No GUI module is needed.
+
+    A port whose editor needs more than parameters, state and keyboard notes (a meter, a setting kept outside
+    the state) also defines createPageExtension().
 */
 
 #pragma once
+
+#include <cstddef>
+#include <cstdint>
+#include <functional>
+#include <memory>
+
+namespace juce
+{
+    class AudioProcessor;
+}
 
 namespace juce::webclap
 {
@@ -36,4 +49,23 @@ namespace juce::webclap
 
     /** Defined by the port. */
     const ClapPluginInfo& getClapPluginInfo();
+
+    /** The DSP side of what a port's editor exchanges besides parameters and state, in frames of the port's
+        own types (protocol::firstPluginType and up). The UI side is ProcessorBridge::sendPluginFrame and
+        ProcessorBridge::onPluginFrame. Everything runs on the plugin's (only) thread. */
+    struct PageExtension
+    {
+        using Sender = std::function<void (std::uint8_t type, const void* payload, std::size_t size)>;
+
+        virtual ~PageExtension() = default;
+
+        /** A port frame from the page. */
+        virtual void receive (AudioProcessor&, std::uint8_t type, const void* payload, std::size_t size) {}
+
+        /** Called about 30 times a second while the page is open: send it what it shows (meters). */
+        virtual void update (AudioProcessor&, const Sender& send) {}
+    };
+
+    /** Defined by ports that need it. The kit's default returns nullptr. */
+    std::unique_ptr<PageExtension> createPageExtension();
 }

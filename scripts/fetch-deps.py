@@ -25,7 +25,7 @@ JUCE_MODULES = ["juce_core", "juce_events", "juce_data_structures", "juce_graphi
                 "juce_gui_extra", "juce_audio_basics", "juce_audio_processors", "juce_audio_processors_headless",
                 "juce_audio_utils", "juce_audio_devices", "juce_audio_formats", "juce_dsp"]
 JUCE_SKIP = ["VST3_SDK", "LV2_SDK", "/lilv/", "/serd/", "/sord/", "/sratom/", "/lv2/", "/zix/", "pslextensions",
-             "/java/", "javaopt", "oboe", "/flac/", "oggvorbis"]
+             "/java/", "javaopt", "oboe", "oggvorbis"]
 
 
 def juce_filter(path):
@@ -104,6 +104,14 @@ DEPS += [
     (SIX + "MTS-ESP", "ODDSound/MTS-ESP", "f214739b8832e7f297cb9970d0c0efbf783f1462", lambda p: p.startswith("Client/")),
 ]
 
+# RipplerX and its MTS-ESP submodule, at the pins of ripplerx master at the time of writing. JUCE is the shared one.
+DEPS += [
+    ("ripplerx", "tiagolr/ripplerx", "11683a6bb1c4eac526c6d44af97abfd83cd6796d",
+     lambda p: p.startswith(("src/", "resources/")) or p in ("LICENSE", "README.md")),
+    ("ripplerx/libs/MTS-ESP", "ODDSound/MTS-ESP", "2d7c013ebf4a076c35811e62293e8f819d053a91",
+     lambda p: p.startswith("Client/")),
+]
+
 FONT_PACKAGE = "https://registry.npmjs.org/dejavu-fonts-ttf/-/dejavu-fonts-ttf-2.37.3.tgz"
 FONT_FILES = ["package/ttf/DejaVuSans.ttf", "package/ttf/DejaVuSans-Bold.ttf", "package/LICENSE"]
 
@@ -159,7 +167,7 @@ def fetch_fonts():
 
 
 # patches/<prefix>-*.patch apply to external/<directory>
-PATCH_TARGETS = [("juce-", "JUCE"), ("six-sines-", "six-sines")]
+PATCH_TARGETS = [("juce-", "JUCE"), ("six-sines-", "six-sines"), ("ripplerx-", "ripplerx")]
 
 
 def apply_patches():

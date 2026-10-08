@@ -121,6 +121,9 @@ public:
         {
             desktop.mainPeer = this;
             bounds.setPosition (0, 0);
+
+            // Editors created after init (once the DSP side's state is in) still size the canvas
+            juce_webclap_js_request_size (bounds.getWidth(), bounds.getHeight());
         }
 
         desktop.peers.push_back (this);

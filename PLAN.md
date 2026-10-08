@@ -5,9 +5,10 @@ plugin's audio code runs as an ordinary WebCLAP somewhere else. The UI never run
 
 Status: OB-Xf runs as a complete WebCLAP bundle (phases 0 and 1): `module.wasm` plays in an AudioWorklet test
 host, its unmodified editor runs as `ui.wasm` in the webview page, parameters, gestures and state round-trip. Six
-Sines (phase 4) runs the same way, with streams for its meters and spectrum analyzer. Not yet tried in openDAW
-(phase 2). See "Prototype findings", "DSP module findings", "Six Sines findings" and README.md. Written
-2026-10-07, Six Sines 2026-10-08.
+Sines (phase 4) runs the same way, with streams for its meters and spectrum analyzer, and RipplerX with the kit's
+first generic extras (keyboard notes, port frames on the AudioProcessor path). Not yet tried in openDAW (phase 2).
+See "Prototype findings", "DSP module findings", "Six Sines findings", "RipplerX findings" and README.md. Written
+2026-10-07, Six Sines and RipplerX 2026-10-08.
 
 ## Goal
 
@@ -269,6 +270,38 @@ port cuts at (`ports/six-sines`, about 1,450 lines, a third of it upstream's CLA
 - **Open.** The analyzer is a second top-level window inside the canvas (a separate OS window on desktop) and opens
   over the editor. Saving patches and themes and loading wavetables go through JUCE's own file browser over the
   in-memory `/user`, so files are lost on reload and the user's own wavetable files cannot be reached yet.
+
+## RipplerX findings (2026-10-08)
+
+RipplerX (tilr, GPL-3.0) is an `AudioProcessor` with an APVTS editor, so it takes OB-Xf's path: the kit's DSP
+wrapper and `ProcessorBridge`. What its editor does beside parameters became kit features where they are general:
+
+- **Keyboard notes.** Editors with a `MidiKeyboardComponent` play into their processor's `MidiKeyboardState`.
+  `ProcessorBridge::forwardKeyboard` sends those notes as `midi` frames (new kit frame type 8), the DSP wrapper plays
+  them at the start of the next `process()`.
+- **Port frames on the AudioProcessor path.** `PageExtension` (DSP side, `juce_webclap_clap.h`) receives frames from
+  type 64 on and gets an `update` call about 30 times a second while the page is open; the UI side is
+  `ProcessorBridge::sendPluginFrame` and `onPluginFrame`. RipplerX uses three: polyphony (a setting kept in a
+  settings file, not in state), the output meter, and the factory program.
+- **Programs must load as programs.** Picking a factory program changes values in the stand-in, which reach the DSP
+  side as single parameter changes. RipplerX resets a resonator's ratio when its model changes, which a native
+  program load suppresses (`resetLastModels`). Applied value by value, the reset fired and overrode the program's
+  ratio (Bells2: 0.47 became 2.0). Now a `program` frame goes ahead of the values and the DSP side calls
+  `setCurrentProgram` itself. Plugins that react to parameter transitions need this kind of care.
+- **Editors that read state only in their constructor** (RipplerX's program menu) are created once the DSP side's
+  snapshot is in, or after a second without one. The kit's main window now requests its size when it is created,
+  so an editor that appears after init still sizes the canvas.
+- **JUCE GUI in a DSP module.** `AudioProcessorValueTreeState` lives in `juce_audio_processors`, which depends on the
+  GUI modules, so `module.wasm` links the GUI JUCE library. With the editor compiled out
+  (`patches/ripplerx-headless.patch`) nothing reaches the window code, the linker drops it and the module still
+  imports only WASI.
+- **JUCE gaps filled:** `MemoryMappedFile` (none on wasm; read-only mappings are now a copy in memory), FLAC sources
+  fetched (the mallet samples are FLAC), `juce_audio_utils`' keyboard components compiled without
+  `juce_audio_devices` (no wasm backend). `juce_webclap.cmake` gained `juce_webclap_add_module`.
+- **Size.** `module.wasm` 1.1 MB (0.4 MB gzipped), `ui.wasm` 5.7 MB (2.3 MB gzipped). UI init under 50 ms.
+- **Open.** Popup menus taller than the canvas are clipped (the preset list). Importing presets and user mallet
+  samples goes through JUCE's file browser over the in-memory filesystem. A preset imported from a file reaches the
+  DSP side value by value, so the ratio reset above can still hit it.
 
 ## Open questions
 

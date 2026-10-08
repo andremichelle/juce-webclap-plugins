@@ -3,10 +3,11 @@
 #   KIT_ROOT                          the repository root
 #   JUCE_WEBCLAP_PLUGIN_DEFINITIONS   the port's JucePlugin_* values (name, version, synth or effect)
 #
-# It defines three static libraries:
+# It defines these static libraries:
 #
 #   juce_wasm             JUCE with GUI (core to gui_basics, audio_processors, dsp) for an editor's ui.wasm
 #   juce_wasm_gui_extra   juce_gui_extra on top of juce_wasm, for editors that need it
+#   juce_wasm_audio_formats, juce_wasm_keyboard   juce_audio_formats, the keyboard components of juce_audio_utils
 #   juce_wasm_dsp         GUI-free JUCE (core, events, data_structures, audio_basics, audio_processors_headless)
 #                         for a module.wasm built around a juce::AudioProcessor
 
@@ -70,11 +71,31 @@ target_compile_definitions(juce_wasm PUBLIC ${JUCE_DEFINITIONS} ${JUCE_GUI_DEFIN
 target_compile_options(juce_wasm PUBLIC ${JUCE_WEBCLAP_FLAGS})
 target_compile_options(juce_wasm PRIVATE -w)
 
+# One more JUCE module on top of a library above: juce_webclap_add_module(<target> <base library> <module> [source])
+# defines <target> with the module's unity file (or the given source) and marks the module available.
+function(juce_webclap_add_module target base module)
+    set(source "${JUCE_MODULES}/${module}/${module}.cpp")
+    if(ARGC GREATER 3)
+        set(source "${ARGV3}")
+    endif()
+    add_library(${target} STATIC "${source}")
+    target_compile_definitions(${target} PUBLIC JUCE_MODULE_AVAILABLE_${module}=1)
+    target_link_libraries(${target} PUBLIC ${base})
+    target_compile_options(${target} PRIVATE -w)
+endfunction()
+
 # juce_gui_extra (ColourSelector, CodeEditor, ...) for editors that need it, without its platform parts
-add_library(juce_wasm_gui_extra STATIC "${JUCE_MODULES}/juce_gui_extra/juce_gui_extra.cpp")
-target_compile_definitions(juce_wasm_gui_extra PUBLIC JUCE_MODULE_AVAILABLE_juce_gui_extra=1)
-target_link_libraries(juce_wasm_gui_extra PUBLIC juce_wasm)
-target_compile_options(juce_wasm_gui_extra PRIVATE -w)
+juce_webclap_add_module(juce_wasm_gui_extra juce_wasm juce_gui_extra)
+
+# juce_audio_formats (WAV, FLAC, ... readers) for plugins that decode samples
+juce_webclap_add_module(juce_wasm_audio_formats juce_wasm juce_audio_formats)
+target_compile_definitions(juce_wasm_audio_formats PUBLIC JUCE_USE_OGGVORBIS=0) # not fetched (fetch-deps.py)
+
+# juce_audio_utils' keyboard components only (an editor's MidiKeyboardComponent)
+juce_webclap_add_module(juce_wasm_keyboard juce_wasm_gui_extra juce_audio_utils
+    "${KIT_ROOT}/modules/juce_webclap/juce_audio_utils_keyboard_wasm.cpp")
+target_compile_definitions(juce_wasm_keyboard PUBLIC
+    JUCE_MODULE_AVAILABLE_juce_audio_devices=1 JUCE_MODULE_AVAILABLE_juce_audio_formats=1)
 
 add_library(juce_wasm_dsp STATIC
     "${KIT_ROOT}/modules/juce_webclap/juce_core_wasm.cpp"

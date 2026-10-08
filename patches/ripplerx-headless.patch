@@ -1,0 +1,26 @@
+--- a/src/PluginProcessor.cpp
++++ b/src/PluginProcessor.cpp
+@@ -856,14 +856,23 @@
+ }
+ 
+ //==============================================================================
++// RIPPLERX_HEADLESS: a DSP-only build (the editor runs elsewhere, e.g. WebCLAP's split UI)
+ bool RipplerXAudioProcessor::hasEditor() const
+ {
++#if RIPPLERX_HEADLESS
++    return false;
++#else
+     return true; // (change this to false if you choose to not supply an editor)
++#endif
+ }
+ 
+ juce::AudioProcessorEditor* RipplerXAudioProcessor::createEditor()
+ {
++#if RIPPLERX_HEADLESS
++    return nullptr;
++#else
+     return new RipplerXAudioProcessorEditor (*this);
++#endif
+ }
+ 
+ //==============================================================================

@@ -11,9 +11,11 @@
         state     both        opaque blob (AudioProcessor::getStateInformation)
         stream    DSP -> UI   u16 streamId, samples
         resize    UI -> DSP   u32 width, u32 height (logical pixels)
+        midi      UI -> DSP   1 to 3 MIDI bytes (notes from the editor's keyboard), played in the next process
 
-    Types from firstPluginType on are the port's own (plugins whose editor does not talk through
-    AudioProcessor parameters, see ports/six-sines). The header has no JUCE dependency, so DSP modules
+    Types from firstPluginType on are the port's own: what an editor needs beyond parameters and state
+    (ports/ripplerx, through PageExtension and ProcessorBridge), or a whole protocol for plugins whose editor
+    does not talk through AudioProcessor parameters (ports/six-sines). The header has no JUCE dependency, so DSP modules
     built without JUCE use it too.
 */
 
@@ -41,7 +43,8 @@ namespace protocol
         gesture  = 4,
         state    = 5,
         stream   = 6,
-        resize   = 7
+        resize   = 7,
+        midi     = 8
     };
 
     constexpr uint8 firstPluginType = 64;

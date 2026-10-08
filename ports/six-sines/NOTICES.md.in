@@ -49,6 +49,8 @@ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the license
 | [Anonymous Pro](https://www.marksimonson.com/fonts/view/anonymous-pro) font | ui | 2009, Mark Simonson | OFL-1.1 (`licenses/OFL-AnonymousPro.txt`) |
 | [DejaVu Sans](https://dejavu-fonts.github.io) font | ui | Bitstream, Tavmjong Bah; DejaVu changes public domain | Bitstream Vera (`licenses/DejaVu.txt`) |
 
+@JUCE_BUNDLED@
+
 ## License texts
 
 ### MIT

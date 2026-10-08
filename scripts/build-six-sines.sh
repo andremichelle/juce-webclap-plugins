@@ -31,7 +31,8 @@ bundle_license "$BUNDLE" "$ROOT/ports/six-sines/NOTICES.md.in" \
     "$SIX/resources/LICENSE_GPL3" GPL-3.0.txt \
     "$SIX/resources/fonts/Manrope/OFL.txt" OFL-Manrope.txt \
     "$SIX/resources/fonts/Anonymous_Pro/OFL.txt" OFL-AnonymousPro.txt \
-    "$ROOT/external/fonts/DejaVu-LICENSE" DejaVu.txt
+    "$ROOT/external/fonts/DejaVu-LICENSE" DejaVu.txt \
+    "${JUCE_CORE_LICENSES[@]}" "${JUCE_GRAPHICS_LICENSES[@]}"
 
 # The archive hosts import (openDAW: Import WebCLAP...)
 python3 "$ROOT/scripts/pack-wclap.py" "$BUNDLE" "$BUILD/six-sines.wclap.tar.gz"

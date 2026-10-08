@@ -7,6 +7,10 @@
 
     The frames are defined in juce_webclap_protocol.h.
 
+    Editors with an on-screen keyboard play into their processor's MidiKeyboardState; forwardKeyboard() sends
+    those notes to the DSP side. What else a port's editor exchanges goes through sendPluginFrame() and
+    onPluginFrame (the DSP side is a PageExtension, see juce_webclap_clap.h).
+
     Parameter ids are CLAP ids. For JUCE parameters with an id this is the id's String::hashCode(), which is
     what clap-juce-extensions uses, so a host that automates CLAP ids talks about the same parameters.
 
@@ -39,7 +43,8 @@ inline uint32 clapIdFor (const AudioProcessorParameter& parameter)
 }
 
 //==============================================================================
-class ProcessorBridge final : private AudioProcessorListener
+class ProcessorBridge final : private AudioProcessorListener,
+                              private MidiKeyboardState::Listener
 {
 public:
     using Sender = std::function<void (const void* data, size_t size)>;
@@ -55,7 +60,27 @@ public:
 
     ~ProcessorBridge() override
     {
+        if (keyboard != nullptr)
+            keyboard->removeListener (this);
+
         processor.removeListener (this);
+    }
+
+    /** Sends the notes played on this keyboard state (the editor's MidiKeyboardComponent) to the DSP side. */
+    void forwardKeyboard (MidiKeyboardState& state)
+    {
+        jassert (keyboard == nullptr);
+        keyboard = &state;
+        keyboard->addListener (this);
+    }
+
+    /** A frame of a port type (protocol::firstPluginType and up), for the port's PageExtension. */
+    void sendPluginFrame (uint8 type, const void* payload, size_t size)
+    {
+        jassert (type >= protocol::firstPluginType);
+        protocol::Writer w (type);
+        w.put (payload, size);
+        emit (w);
     }
 
     static uint32 clapIdFor (const AudioProcessorParameter& parameter) { return webclap::clapIdFor (parameter); }
@@ -138,7 +163,10 @@ public:
             }
 
             default:
-                break; // stream frames are for meters, which this bridge does not handle yet
+                if (type >= protocol::firstPluginType && onPluginFrame)
+                    onPluginFrame (type, r.p, (size_t) (r.end - r.p));
+
+                break;
         }
     }
 
@@ -225,6 +253,9 @@ public:
 
     std::function<void (uint32 id, double value)> onRemoteValue;
     std::function<void()> onRemoteState;
+
+    /** A port frame from the DSP side (its PageExtension). */
+    std::function<void (uint8 type, const uint8* payload, size_t size)> onPluginFrame;
 
 private:
     struct Event
@@ -323,6 +354,24 @@ private:
     void audioProcessorParameterChangeGestureBegin (AudioProcessor*, int index) override { gesture (index, true); }
     void audioProcessorParameterChangeGestureEnd (AudioProcessor*, int index) override   { gesture (index, false); }
 
+    //==============================================================================
+    void sendMidi (const MidiMessage& message)
+    {
+        protocol::Writer w (protocol::midi);
+        w.put (message.getRawData(), (size_t) message.getRawDataSize());
+        emit (w);
+    }
+
+    void handleNoteOn (MidiKeyboardState*, int channel, int note, float velocity) override
+    {
+        sendMidi (MidiMessage::noteOn (channel, note, velocity));
+    }
+
+    void handleNoteOff (MidiKeyboardState*, int channel, int note, float velocity) override
+    {
+        sendMidi (MidiMessage::noteOff (channel, note, velocity));
+    }
+
     void audioProcessorChanged (AudioProcessor*, const ChangeDetails& details) override
     {
         if (! applyingRemote && details.nonParameterStateChanged)
@@ -331,6 +380,7 @@ private:
 
     AudioProcessor& processor;
     Sender send;
+    MidiKeyboardState* keyboard = nullptr;
     std::unordered_map<uint32, AudioProcessorParameter*> parametersById;
     std::vector<Event> pending;
     std::map<uint32, size_t> pendingValue;

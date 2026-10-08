@@ -31,6 +31,9 @@ namespace juce::webclap
 {
 int dispatchPendingMessages(); // juce_wasm_Messaging.cpp
 
+/** Ports without a PageExtension get none (a port defines its own createPageExtension to replace this). */
+__attribute__ ((weak)) std::unique_ptr<PageExtension> createPageExtension() { return nullptr; }
+
 namespace
 {
 //==============================================================================
@@ -143,6 +146,7 @@ private:
             return false;
 
         processor->setPlayHead (&playHead);
+        extension = createPageExtension();
 
         for (auto* parameter : processor->getParameters())
         {
@@ -171,6 +175,7 @@ private:
         scratch.setSize (jmax (inputs, outputs), (int) maxFrames);
         midi.ensureSize (4096);
         fallbackInterval = (int) (sampleRate / 30.0);
+        extensionInterval = (int) (sampleRate / 30.0);
         return true;
     }
 
@@ -192,6 +197,13 @@ private:
 
         if (process.in_events != nullptr)
             readEvents (*process.in_events, true);
+
+        // Notes from the editor's keyboard, at the start of the block
+        if (! pageMidi.isEmpty())
+        {
+            midi.addEvents (pageMidi, 0, -1, 0);
+            pageMidi.clear();
+        }
 
         // Audio buffers: the processor works in place on the outputs (extra input channels on scratch).
         const auto numOut = process.audio_outputs_count > 0 ? (int) process.audio_outputs[0].channel_count : 0;
@@ -218,6 +230,18 @@ private:
 
         if (process.out_events != nullptr)
             writeEvents (*process.out_events);
+
+        if (extension != nullptr && pageOpen)
+        {
+            samplesSinceExtensionUpdate += frames;
+
+            if (samplesSinceExtensionUpdate >= extensionInterval)
+            {
+                samplesSinceExtensionUpdate = 0;
+                extensionUpdateDue = true;
+                requestPageUpdate();
+            }
+        }
 
         // Fallback for hosts that do not call on_main_thread: send page updates from here.
         if (pageUpdateRequested)
@@ -404,9 +428,20 @@ private:
         switch (type)
         {
             case protocol::hello:
+                pageOpen = true;
                 pageSnapshot = true;
                 sendPageUpdates();
                 break;
+
+            case protocol::midi:
+            {
+                const auto size = (int) (r.end - r.p);
+
+                if (size >= 1 && size <= 3)
+                    pageMidi.addEvent (r.p, size, 0);
+
+                break;
+            }
 
             case protocol::param:
             {
@@ -466,6 +501,9 @@ private:
             }
 
             default:
+                if (type >= protocol::firstPluginType && extension != nullptr)
+                    extension->receive (*processor, type, r.p, (size_t) (r.end - r.p));
+
                 break;
         }
 
@@ -501,6 +539,8 @@ private:
         if (! guiCreated || hostWebview == nullptr || hostWebview->send == nullptr)
             return;
 
+        sendExtensionUpdate();
+
         if (std::exchange (pageSnapshot, false))
         {
             MemoryBlock state;
@@ -534,6 +574,19 @@ private:
         }
 
         pageValues.clear();
+    }
+
+    void sendExtensionUpdate()
+    {
+        if (extension == nullptr || ! pageOpen || ! std::exchange (extensionUpdateDue, false))
+            return;
+
+        extension->update (*processor, [this] (uint8_t type, const void* payload, size_t size)
+        {
+            protocol::Writer w (type);
+            w.put (payload, size);
+            hostWebview->send (host, w.bytes.data(), (uint32_t) w.bytes.size());
+        });
     }
 
     int32_t getUri (char* uri, uint32_t capacity) const
@@ -762,6 +815,7 @@ private:
             {
                 auto& s = self (p);
                 s.guiCreated = false;
+                s.pageOpen = false;
                 s.pageUpdateRequested = false;
                 s.pageValues.clear();
             },
@@ -825,7 +879,11 @@ private:
     Origin origin = Origin::plugin;
     std::vector<OutEvent> outEvents;
 
-    bool guiCreated = false, pageSnapshot = false, pageUpdateRequested = false;
+    bool guiCreated = false, pageOpen = false, pageSnapshot = false, pageUpdateRequested = false;
+    std::unique_ptr<PageExtension> extension;
+    MidiBuffer pageMidi;
+    bool extensionUpdateDue = false;
+    int samplesSinceExtensionUpdate = 0, extensionInterval = 1600;
     std::unordered_set<clap_id> pageValues;
     int samplesSinceRequest = 0, fallbackInterval = 1600;
     uint32_t editorWidth = 0, editorHeight = 0;

@@ -1,40 +1,35 @@
-# OB-Xf for WebCLAP
+# RipplerX for WebCLAP
 
-OB-Xf by the Surge Synth Team, a virtual analog synthesizer continuing OB-Xd, ported to WebCLAP. This is not an
-official OB-Xf release.
+RipplerX by tilr, a physically modeled synth, ported to WebCLAP. This is not an official RipplerX release.
 
-- OB-Xf: https://github.com/surge-synthesizer/OB-Xf (commit b08ffb6)
+- RipplerX: https://github.com/tiagolr/ripplerx (commit 11683a6, version 1.5.18)
 - This port, and the complete source of this bundle: @SOURCE_URL@
-  Build it with `scripts/build-obxf.sh`, which fetches every dependency below at the commit named here.
+  Build it with `scripts/build-ripplerx.sh`, which fetches every dependency below at the commit named here.
 
 ## License
 
 The bundle as a whole is licensed under the **GNU Affero General Public License, version 3** (`LICENSE`).
 
-OB-Xf is GPL-3.0-or-later (`licenses/GPL-3.0.txt`). Both modules contain the JUCE framework (the DSP module its
-GUI-free part), used under the AGPL-3.0, so `module.wasm` and `ui/ui.wasm` are AGPL-3.0. GPL-3.0 section 13
-permits the combination.
+RipplerX is GPL-3.0 (`licenses/GPL-3.0.txt`). Both modules contain the JUCE framework, used under the AGPL-3.0, so
+`module.wasm` and `ui/ui.wasm` are AGPL-3.0. GPL-3.0 section 13 permits the combination.
 
 This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
 warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the licenses for details.
+
+RipplerX is a port of tilr's Rippler2 JSFX, which builds on Saike's [Partials](https://github.com/JoepVanlier/JSFX)
+(MIT) and takes its models after AAS Chromaphone and Collision.
 
 ## Components
 
 | Component | In | Copyright | License |
 |---|---|---|---|
-| [OB-Xf](https://github.com/surge-synthesizer/OB-Xf), incl. factory patches, themes and the Trek font | both | 2013-2025 the authors of OB-Xd (Vadim Filatov, 2DaT, discoDSP) and of OB-Xf per its git log | GPL-3.0-or-later |
+| [RipplerX](https://github.com/tiagolr/ripplerx), incl. presets, images and mallet samples | both | 2025 tilr | GPL-3.0 |
+| Limiter in RipplerX (port of the FairlyChildish limiter JSFX) | both | 2006, Thomas Scott Stillwell | BSD-3-Clause style |
 | WebCLAP port ([juce-webclap-plugins](https://github.com/andremichelle/juce-webclap-plugins)) | both | André Michelle | MIT |
 | [JUCE](https://juce.com) | both | Raw Material Software Limited | AGPL-3.0 |
-| [sst-basic-blocks](https://github.com/surge-synthesizer/sst-basic-blocks) | both | Surge Synth Team | GPL-3.0 |
-| [sst-cpputils](https://github.com/surge-synthesizer/sst-cpputils) | both | 2019-2021, authors per the git log | MIT |
-| [sst-plugininfra](https://github.com/surge-synthesizer/sst-plugininfra) | both | 2019-2020, Paul Walker | MIT |
-| [strnatcmp](https://github.com/sourcefrog/natsort) (in sst-plugininfra) | both | 2000, 2004 Martin Pool | zlib |
 | [MTS-ESP client](https://github.com/ODDSound/MTS-ESP) | both | 2021 ODDSound Ltd. | 0BSD |
-| [{fmt}](https://github.com/fmtlib/fmt) | both | 2012 - present, Victor Zverovich and {fmt} contributors | MIT |
-| [SIMDe](https://github.com/simd-everywhere/simde) | both | 2017 Evan Nemerson | MIT |
-| [ghc::filesystem](https://github.com/gulrak/filesystem) | both | 2018, Steffen Schümann | MIT |
 | [CLAP](https://github.com/free-audio/clap) | module | 2021 Alexandre Bique | MIT |
-| [Jersey 20](https://github.com/scfried/soft-type-jersey) font | ui | 2023 The Soft Type Project Authors | OFL-1.1 (`licenses/OFL-Jersey20.txt`) |
+| Ubuntu Medium font | ui | 2011 Canonical Ltd. | Ubuntu Font Licence 1.0 (`licenses/UFL-1.0-Ubuntu.txt`) |
 | [DejaVu Sans](https://dejavu-fonts.github.io) font | ui | Bitstream, Tavmjong Bah; DejaVu changes public domain | Bitstream Vera (`licenses/DejaVu.txt`) |
 
 @JUCE_BUNDLED@
@@ -59,20 +54,30 @@ Applies to the components marked MIT above, each under its own copyright line.
 > CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
 > IN THE SOFTWARE.
 
-### zlib (strnatcmp)
+### BSD (the limiter)
 
-> This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held
-> liable for any damages arising from the use of this software.
+> Copyright 2006, Thomas Scott Stillwell
+> All rights reserved.
 >
-> Permission is granted to anyone to use this software for any purpose, including commercial applications, and to
-> alter it and redistribute it freely, subject to the following restrictions:
+> Redistribution and use in source and binary forms, with or without modification, are permitted provided that the
+> following conditions are met:
 >
-> 1. The origin of this software must not be misrepresented; you must not claim that you wrote the original
->    software. If you use this software in a product, an acknowledgment in the product documentation would be
->    appreciated but is not required.
-> 2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original
->    software.
-> 3. This notice may not be removed or altered from any source distribution.
+> Redistributions of source code must retain the above copyright notice, this list of conditions and the following
+> disclaimer.
+>
+> Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the
+> following disclaimer in the documentation and/or other materials provided with the distribution.
+>
+> The name of Thomas Scott Stillwell may not be used to endorse or promote products derived from this software
+> without specific prior written permission.
+>
+> THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES,
+> INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+> DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+> SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+> SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
+> WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE
+> USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 ### 0BSD (MTS-ESP client)
 

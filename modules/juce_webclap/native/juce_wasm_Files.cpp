@@ -157,6 +157,37 @@ bool JUCE_CALLTYPE Process::openDocument (const String&, const String&) { return
 bool Thread::createNativeThread (Priority)  { return false; }
 void Thread::killThread()                   {}
 
+//==============================================================================
+// No mmap: a read-only mapping is a copy of the file's range in memory. Writable mappings fail (address stays
+// null), which callers already handle as "cannot map" (audio format readers fall back to reading the stream).
+
+void MemoryMappedFile::openInternal (const File& file, AccessMode mode, bool)
+{
+    const auto length = (size_t) range.getLength();
+    FileInputStream in (file);
+
+    if (mode == readOnly && in.openedOk() && in.setPosition (range.getStart()))
+    {
+        if (auto* data = std::malloc (length))
+        {
+            if (in.read (data, (int) length) == (int) length)
+            {
+                address = data;
+                return;
+            }
+
+            std::free (data);
+        }
+    }
+
+    range = {};
+}
+
+MemoryMappedFile::~MemoryMappedFile()
+{
+    std::free (address);
+}
+
 } // namespace juce
 
 // Emscripten's libc has no wcsftime. JUCE's Time::formatted uses it, so format narrow and widen.
