@@ -11,12 +11,16 @@
         state     both        opaque blob (AudioProcessor::getStateInformation)
         stream    DSP -> UI   u16 streamId, samples
         resize    UI -> DSP   u32 width, u32 height (logical pixels)
+
+    Types from firstPluginType on are the port's own (plugins whose editor does not talk through
+    AudioProcessor parameters, see ports/six-sines). The header has no JUCE dependency, so DSP modules
+    built without JUCE use it too.
 */
 
 #pragma once
 
-#include <juce_core/juce_core.h>
-
+#include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <vector>
 
@@ -25,6 +29,10 @@ namespace juce::webclap
 
 namespace protocol
 {
+    using uint8 = std::uint8_t;
+    using uint16 = std::uint16_t;
+    using uint32 = std::uint32_t;
+
     enum Type : uint8
     {
         hello    = 1,
@@ -36,6 +44,8 @@ namespace protocol
         resize   = 7
     };
 
+    constexpr uint8 firstPluginType = 64;
+
     constexpr uint32 version = 1;
 
     /** Set on param/state frames the UI sends to seed a DSP side that has no values yet (empty snapshot). */
@@ -43,11 +53,12 @@ namespace protocol
 
     struct Writer
     {
-        explicit Writer (Type type, uint8 flags = 0) { u8 (type); u8 (flags); u16 (0); }
+        explicit Writer (uint8 type, uint8 flags = 0) { u8 (type); u8 (flags); u16 (0); }
 
         void u8 (uint8 v)   { bytes.push_back (v); }
         void u16 (uint16 v) { put (&v, sizeof (v)); }
         void u32 (uint32 v) { put (&v, sizeof (v)); }
+        void f32 (float v)  { put (&v, sizeof (v)); }
         void f64 (double v) { put (&v, sizeof (v)); }
 
         // wasm is little endian, so memcpy produces the wire format

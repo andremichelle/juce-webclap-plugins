@@ -5,8 +5,10 @@
     build still imports a few functions from "env" that its JS runtime would provide: the memory growth hook and
     the file syscalls WASI has no equivalent for. Defining them here makes the linker use these instead.
 
-    A DSP module has no files of its own (the host serves the bundle to the page), so they fail with ENOSYS,
-    the same as the WASI calls a host does not implement.
+    A DSP module has no files of its own (the host serves the bundle to the page). It looks like an empty,
+    read-only filesystem: lookups fail with ENOENT, changes with EROFS. Emscripten's own stubs for stat, open
+    and mkdir answer ENOSYS, which libraries treat as a hard error (ghc::filesystem::exists throws) where a
+    missing file is an ordinary case (no settings saved yet).
 
     Emscripten's standalone getentropy() aborts (its weak default), which kills std::random_device. It is
     replaced with WASI random_get.
@@ -49,10 +51,15 @@ int __syscall_getcwd (intptr_t buffer, size_t size)
     return 2;
 }
 
-int __syscall_faccessat (int, intptr_t, int, int)               { return -ENOSYS; }
-int __syscall_getdents64 (int, intptr_t, size_t)                { return -ENOSYS; }
-int __syscall_readlinkat (int, intptr_t, intptr_t, size_t)      { return -ENOSYS; }
-int __syscall_unlinkat (int, intptr_t, int)                     { return -ENOSYS; }
-int __syscall_rmdir (intptr_t)                                  { return -ENOSYS; }
-int __syscall_renameat (int, intptr_t, int, intptr_t)           { return -ENOSYS; }
+int __syscall_faccessat (int, intptr_t, int, int)               { return -ENOENT; }
+int __syscall_stat64 (intptr_t, intptr_t)                       { return -ENOENT; }
+int __syscall_lstat64 (intptr_t, intptr_t)                      { return -ENOENT; }
+int __syscall_newfstatat (int, intptr_t, intptr_t, int)         { return -ENOENT; }
+int __syscall_openat (int, intptr_t, int, ...)                  { return -ENOENT; }
+int __syscall_getdents64 (int, intptr_t, size_t)                { return -ENOENT; }
+int __syscall_readlinkat (int, intptr_t, intptr_t, size_t)      { return -ENOENT; }
+int __syscall_mkdirat (int, intptr_t, int)                      { return -EROFS; }
+int __syscall_unlinkat (int, intptr_t, int)                     { return -EROFS; }
+int __syscall_rmdir (intptr_t)                                  { return -EROFS; }
+int __syscall_renameat (int, intptr_t, int, intptr_t)           { return -EROFS; }
 }

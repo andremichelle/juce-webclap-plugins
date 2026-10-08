@@ -60,6 +60,50 @@ DEPS = [
     ("MTS-ESP", "oddsound/MTS-ESP", "ce3f30e812744d8319313d80b92781bc3bcf4e18", lambda p: p.startswith("Client/")),
 ]
 
+
+def six_sines_filter(path):
+    return (path.startswith(("src/", "resources/factory_patches/", "resources/factory_themes/", "resources/fonts/",
+                             "resources/icon/", "cmake/CmakeRC.cmake"))
+            or path in ("doc/ack.md", "LICENSE", "VERSION"))
+
+
+def include_only(path):
+    return path.startswith("include/")
+
+
+# Six Sines and its submodules at the pins of six-sines main at the time of writing, laid out like its libs/ so the
+# port reads like the upstream build. JUCE is the shared external/JUCE (newer than Six Sines' 8.0.10 pin).
+SIX = "six-sines/libs/"
+DEPS += [
+    ("six-sines", "baconpaul/six-sines", "03f3b9af04511705148bca654a57f68742b5fb08", six_sines_filter),
+    (SIX + "sst/sst-jucegui", "surge-synthesizer/sst-jucegui", "3aeed6ea9508e7aa2b12cf33c1f6252be7ec22b6",
+     lambda p: p.startswith(("include/", "src/", "res/glyphs/"))),
+    (SIX + "sst/sst-basic-blocks", "surge-synthesizer/sst-basic-blocks", "d9c4ce25a739afa8b8e850a8b973a5a912c34ea7",
+     include_only),
+    (SIX + "sst/sst-cpputils", "surge-synthesizer/sst-cpputils", "df02974f3d1a0da9f1caeb0cd65c944d068613a8",
+     include_only),
+    (SIX + "sst/sst-filters", "surge-synthesizer/sst-filters", "abef77ff1c32fe65260d84c3f8a3e637474213fc",
+     include_only),
+    (SIX + "sst/sst-voicemanager", "surge-synthesizer/sst-voicemanager", "c7dec29113ff9391af2029246208c46b85693164",
+     include_only),
+    (SIX + "sst/sst-plugininfra", "surge-synthesizer/sst-plugininfra", "783b28d35d47176badd3ce34453ce27b99591f3d",
+     lambda p: p.startswith(("include/", "src/", "libs/tinyxml/include/", "libs/tinyxml/src/", "libs/strnatcmp/"))),
+    (SIX + "sst/sst-plugininfra/libs/miniz", "richgel999/miniz", "16413c213de38e703d883006193734e8b1178d5d",
+     lambda p: "/" not in p and p.endswith((".c", ".h", ".txt", ".md"))),
+    (SIX + "sst/sst-clap-helpers", "surge-synthesizer/sst-clap-helpers", "f17567a8166a50bfb50ddc9acca7e77c72e6096f",
+     lambda p: p.startswith(("include/", "src/"))),
+    (SIX + "clap-libs/clap", "free-audio/clap", "29ffcc273be7c7c651f6c9953b99e69700e2387a", include_only),
+    (SIX + "clap-libs/clap-helpers", "free-audio/clap-helpers", "a61bcdf0ecc2c8db1e80bfe8bf9cb7e8d9fd2bbc",
+     include_only),
+    (SIX + "fmt", "fmtlib/fmt", "407c905e45ad75fc29bf0f9bb7c5c2fd3475976f", lambda p: p.startswith(("include/", "src/"))),
+    (SIX + "libsamplerate", "libsndfile/libsamplerate", "15c392d47e71b9395a759544b3818a1235fe1a1d",
+     lambda p: p.startswith(("src/", "include/"))),
+    (SIX + "pffft", "surge-synthesizer/pffft", "d027f2a290ca0047d95513c2a20570d13557e381",
+     lambda p: "/" not in p and p.endswith((".c", ".h", ".hpp", ".cpp", ".txt", ".md"))),
+    (SIX + "simde", "simd-everywhere/simde", "60a3a24462d5c074f669ed8b39c85f5b1128108f", lambda p: p.startswith("simde/")),
+    (SIX + "MTS-ESP", "ODDSound/MTS-ESP", "f214739b8832e7f297cb9970d0c0efbf783f1462", lambda p: p.startswith("Client/")),
+]
+
 FONT_PACKAGE = "https://registry.npmjs.org/dejavu-fonts-ttf/-/dejavu-fonts-ttf-2.37.3.tgz"
 FONT_FILES = ["package/ttf/DejaVuSans.ttf", "package/ttf/DejaVuSans-Bold.ttf", "package/LICENSE"]
 
@@ -114,19 +158,24 @@ def fetch_fonts():
     print("fonts: DejaVu Sans")
 
 
+# patches/<prefix>-*.patch apply to external/<directory>
+PATCH_TARGETS = [("juce-", "JUCE"), ("six-sines-", "six-sines")]
+
+
 def apply_patches():
-    juce = os.path.join(EXTERNAL, "JUCE")
-    for name in sorted(p for p in os.listdir(os.path.join(ROOT, "patches")) if p.startswith("juce-")):
-        path = os.path.join(ROOT, "patches", name)
-        dry = lambda *extra: subprocess.run(["patch", "-p1", "-s", "-f", "--dry-run", *extra, "-i", path],
-                                            cwd=juce, capture_output=True).returncode == 0
-        if dry("-R"):
-            print(f"{name}: already applied")
-        elif dry():
-            subprocess.run(["patch", "-p1", "-s", "-i", path], cwd=juce, check=True)
-            print(f"{name}: applied")
-        else:
-            raise RuntimeError(f"{name} does not apply to external/JUCE (modified by hand?)")
+    for prefix, directory in PATCH_TARGETS:
+        target = os.path.join(EXTERNAL, directory)
+        for name in sorted(p for p in os.listdir(os.path.join(ROOT, "patches")) if p.startswith(prefix)):
+            path = os.path.join(ROOT, "patches", name)
+            dry = lambda *extra: subprocess.run(["patch", "-p1", "-s", "-f", "--dry-run", *extra, "-i", path],
+                                                cwd=target, capture_output=True).returncode == 0
+            if dry("-R"):
+                print(f"{name}: already applied")
+            elif dry():
+                subprocess.run(["patch", "-p1", "-s", "-i", path], cwd=target, check=True)
+                print(f"{name}: applied")
+            else:
+                raise RuntimeError(f"{name} does not apply to external/{directory} (modified by hand?)")
 
 
 def main():

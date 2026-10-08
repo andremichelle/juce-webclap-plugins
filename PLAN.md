@@ -4,8 +4,10 @@ Run the editor of an existing JUCE plugin as the UI of a WebCLAP plugin, drawn i
 plugin's audio code runs as an ordinary WebCLAP somewhere else. The UI never runs on the audio thread.
 
 Status: OB-Xf runs as a complete WebCLAP bundle (phases 0 and 1): `module.wasm` plays in an AudioWorklet test
-host, its unmodified editor runs as `ui.wasm` in the webview page, parameters, gestures and state round-trip. Not
-yet tried in openDAW (phase 2). See "Prototype findings", "DSP module findings" and README.md. Written 2026-10-07.
+host, its unmodified editor runs as `ui.wasm` in the webview page, parameters, gestures and state round-trip. Six
+Sines (phase 4) runs the same way, with streams for its meters and spectrum analyzer. Not yet tried in openDAW
+(phase 2). See "Prototype findings", "DSP module findings", "Six Sines findings" and README.md. Written
+2026-10-07, Six Sines 2026-10-08.
 
 ## Goal
 
@@ -147,7 +149,8 @@ plugin.wclap/
    record automation, the window survives close and reopen.
 3. **Streams.** Meters and a scope at UI rate without touching process time.
 4. **First real plugin.** Six Sines (MIT, CLAP-first, Surge team), if its editor turns out parameter-driven, else
-   the next candidate. Measure the glue its editor needs.
+   the next candidate. Measure the glue its editor needs. Done, see "Six Sines findings": its editor is not
+   parameter-driven, but its engine/editor queues made it a clean port anyway.
 5. **Polish.** DPR changes, resizable editors, keyboard focus, text fields, accessibility basics.
 
 ## Risks
@@ -229,6 +232,43 @@ audio_processors_headless).
 host in an AudioWorklet (WASI shim, host callbacks through generated wasm trampolines, events, state, gui,
 webview), the page relays the webview, shows parameters, automates one, saves and loads state, plays notes
 (screen, computer keys, Web MIDI) and can ignore `request_callback` to test the fallback.
+
+## Six Sines findings (2026-10-08)
+
+Six Sines is CLAP-first: no `juce::AudioProcessor`, so neither `juce_webclap_clap.cpp` nor `ProcessorBridge`
+applies. Its editor edits a main-thread patch (`Synth::patchMain`) and talks to the engine through two POD ring
+buffers (`MainToAudioMsg`, `AudioToMainMsg`) plus a stereo audio ring for the analyzer. That boundary is what the
+port cuts at (`ports/six-sines`, about 1,450 lines, a third of it upstream's CLAP plugin):
+
+- **DSP module.** Upstream's `SixSinesClap` without the JUCE GUI shim, preset discovery and VST3/AU extensions,
+  plus `clap.gui` (webview) and `clap.webview`. The engine is unchanged. The bridge does what the editor does on
+  the shared main thread: applies `MainToAudioMsg` to `patchMain` and pushes it into the queue, drains
+  `audioToMain` while the page is open (`editorActive`), and sends the patch on hello or after a host/preset load
+  (`uiForceRebuild`). No JUCE in the module.
+- **UI module.** The editor, unchanged, against a stand-in `Synth` that never processes. Per frame the queue
+  crosses as one `toAudio` frame (a factory preset load is one 65 KB frame with every value), engine answers arrive
+  as `toMain` and go into the stand-in's queue, where the editor's idle drains them as it would.
+- **Non-parameter state.** Name, macro names, wavetable blobs, session state: the editor writes them to
+  `patchMain` directly. The UI side fingerprints them per frame and sends a `patchMeta` frame on change, with the
+  wavetable bytes only when the tables changed. The DSP side builds wavetables itself (upstream does that in the
+  editor's idle, so a DSP-only build has to).
+- **Port frames.** The kit protocol now reserves types from 64 for ports and has no JUCE dependency.
+- **Streams.** VU meters, voice count and CPU ride on `toMain` (about 60 Hz). The spectrum analyzer subscribes to
+  the stand-in's audio ring; the UI forwards that as a `scope` frame and the DSP side streams its ring as `audio`
+  frames (raw stereo float, about 380 KB/s while the analyzer is open).
+- **Threads.** The analyzer's FFT runs on a `std::thread`; `patches/six-sines-no-threads.patch` runs the same loop
+  from a 60 Hz `juce::Timer` instead. Nothing else in the editor or engine needed changes.
+- **Empty filesystem.** The engine reads user defaults at construction. Emscripten's standalone `stat` answers
+  ENOSYS and ghc::filesystem throws on that, so `juce_webclap_standalone.cpp` now answers ENOENT for lookups and
+  EROFS for changes: a DSP module looks like an empty, read-only filesystem.
+- **Build.** All dependencies at Six Sines' submodule pins under `external/six-sines/libs`, JUCE shared (newer than
+  Six Sines' 8.0.10 pin, compiles unchanged). CMakeRC resources work under Emscripten as they are. sst-jucegui
+  needs `juce_gui_extra` (colour editor), now `juce_wasm_gui_extra` in `juce_webclap.cmake`.
+- **Size.** `module.wasm` 2.6 MB (1.6 MB gzipped), `ui.wasm` 20.7 MB (5.5 MB gzipped), of which about 11 MB is the
+  216 embedded factory patches. UI init about 280 ms.
+- **Open.** The analyzer is a second top-level window inside the canvas (a separate OS window on desktop) and opens
+  over the editor. Saving patches and themes and loading wavetables go through JUCE's own file browser over the
+  in-memory `/user`, so files are lost on reload and the user's own wavetable files cannot be reached yet.
 
 ## Open questions
 

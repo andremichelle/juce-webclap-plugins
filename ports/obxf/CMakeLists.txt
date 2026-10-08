@@ -14,7 +14,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 get_filename_component(KIT_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
 set(EXT "${KIT_ROOT}/external")
-set(JUCE_MODULES "${EXT}/JUCE/modules")
 set(OBXF "${EXT}/OB-Xf")
 set(OBXF_INSTALLER "${OBXF}/assets/installer/Surge Synth Team/OB-Xf")
 set(BUNDLE "${CMAKE_BINARY_DIR}/web/obxf.wclap")
@@ -48,32 +47,9 @@ add_custom_command(
     VERBATIM)
 
 # ---------------------------------------------------------------------------------------------------------------
-# Common compile settings
+# JUCE with the wasm platform layer: juce_wasm for the editor, juce_wasm_dsp (no GUI) for the DSP module
 
-set(COMMON_FLAGS -msimd128 -fwasm-exceptions)
-
-set(JUCE_DEFINITIONS
-    JUCE_GLOBAL_MODULE_SETTINGS_INCLUDED=1
-    JUCE_STANDALONE_APPLICATION=0
-    JUCE_MODULE_AVAILABLE_juce_core=1
-    JUCE_MODULE_AVAILABLE_juce_events=1
-    JUCE_MODULE_AVAILABLE_juce_data_structures=1
-    JUCE_MODULE_AVAILABLE_juce_audio_basics=1
-    JUCE_MODULE_AVAILABLE_juce_audio_processors_headless=1
-    JUCE_USE_CURL=0
-    JUCE_WEB_BROWSER=0
-    JUCE_USE_FREETYPE=0
-    JUCE_USE_FONTCONFIG=0
-    JUCE_MODAL_LOOPS_PERMITTED=0
-    JUCE_PLUGINHOST_VST=0
-    JUCE_PLUGINHOST_VST3=0
-    JUCE_PLUGINHOST_AU=0
-    JUCE_PLUGINHOST_LADSPA=0
-    JUCE_PLUGINHOST_LV2=0
-    JUCE_PLUGINHOST_ARA=0
-    JUCE_DISPLAY_SPLASH_SCREEN=0
-    JUCE_USE_DARK_SPLASH_SCREEN=0
-    JUCE_ASIO=0
+set(JUCE_WEBCLAP_PLUGIN_DEFINITIONS
     JucePlugin_Name="OB-Xf"
     JucePlugin_Desc="OB-Xf"
     JucePlugin_Manufacturer="Surge Synth Team"
@@ -82,56 +58,8 @@ set(JUCE_DEFINITIONS
     JucePlugin_WantsMidiInput=1
     JucePlugin_ProducesMidiOutput=0
     JucePlugin_IsMidiEffect=0
-    JucePlugin_EditorRequiresKeyboardFocus=1
-    JucePlugin_Build_VST=0
-    JucePlugin_Build_VST3=0
-    JucePlugin_Build_AU=0
-    JucePlugin_Build_AUv3=0
-    JucePlugin_Build_AAX=0
-    JucePlugin_Build_Standalone=0
-    JucePlugin_Build_Unity=0
-    JucePlugin_Build_LV2=0
-    NDEBUG=1)
-
-set(JUCE_GUI_DEFINITIONS
-    JUCE_MODULE_AVAILABLE_juce_graphics=1
-    JUCE_MODULE_AVAILABLE_juce_gui_basics=1
-    JUCE_MODULE_AVAILABLE_juce_audio_processors=1
-    JUCE_MODULE_AVAILABLE_juce_dsp=1)
-
-# ---------------------------------------------------------------------------------------------------------------
-# JUCE, with the wasm platform layer from juce_webclap. juce_wasm for the editor, juce_wasm_dsp (no GUI) for the
-# DSP module.
-
-add_library(juce_wasm STATIC
-    "${KIT_ROOT}/modules/juce_webclap/juce_core_wasm.cpp"
-    "${JUCE_MODULES}/juce_core/juce_core_CompilationTime.cpp"
-    "${JUCE_MODULES}/juce_data_structures/juce_data_structures.cpp"
-    "${JUCE_MODULES}/juce_graphics/juce_graphics_Harfbuzz.cpp"
-    "${JUCE_MODULES}/juce_graphics/juce_graphics_Sheenbidi.c"
-    "${JUCE_MODULES}/juce_audio_basics/juce_audio_basics.cpp"
-    "${JUCE_MODULES}/juce_audio_processors_headless/juce_audio_processors_headless.cpp"
-    "${JUCE_MODULES}/juce_audio_processors/juce_audio_processors.cpp"
-    "${JUCE_MODULES}/juce_dsp/juce_dsp.cpp"
-    "${KIT_ROOT}/modules/juce_webclap/juce_events_wasm.cpp"
-    "${KIT_ROOT}/modules/juce_webclap/juce_graphics_wasm.cpp"
-    "${KIT_ROOT}/modules/juce_webclap/juce_gui_basics_wasm.cpp")
-target_include_directories(juce_wasm PUBLIC "${JUCE_MODULES}" "${KIT_ROOT}/modules")
-target_compile_definitions(juce_wasm PUBLIC ${JUCE_DEFINITIONS} ${JUCE_GUI_DEFINITIONS})
-target_compile_options(juce_wasm PUBLIC ${COMMON_FLAGS})
-target_compile_options(juce_wasm PRIVATE -w)
-
-add_library(juce_wasm_dsp STATIC
-    "${KIT_ROOT}/modules/juce_webclap/juce_core_wasm.cpp"
-    "${JUCE_MODULES}/juce_core/juce_core_CompilationTime.cpp"
-    "${JUCE_MODULES}/juce_data_structures/juce_data_structures.cpp"
-    "${JUCE_MODULES}/juce_audio_basics/juce_audio_basics.cpp"
-    "${JUCE_MODULES}/juce_audio_processors_headless/juce_audio_processors_headless.cpp"
-    "${KIT_ROOT}/modules/juce_webclap/juce_events_wasm.cpp")
-target_include_directories(juce_wasm_dsp PUBLIC "${JUCE_MODULES}" "${KIT_ROOT}/modules")
-target_compile_definitions(juce_wasm_dsp PUBLIC ${JUCE_DEFINITIONS})
-target_compile_options(juce_wasm_dsp PUBLIC ${COMMON_FLAGS})
-target_compile_options(juce_wasm_dsp PRIVATE -w)
+    JucePlugin_EditorRequiresKeyboardFocus=1)
+include("${KIT_ROOT}/modules/juce_webclap/juce_webclap.cmake")
 
 # ---------------------------------------------------------------------------------------------------------------
 # OB-Xf, unchanged sources: the processor in both modules (in ui.wasm as the editor's stand-in), the editor only in
@@ -145,7 +73,7 @@ set(OBXF_PROCESSOR_SOURCES
     "${OBXF}/src/midi/MidiHandler.cpp"
     "${OBXF}/src/parameter/ParameterUpdateHandler.cpp"
     "${OBXF}/src/parameter/ParameterCoordinator.cpp"
-    shim/sst_plugininfra_wasm.cpp
+    "${KIT_ROOT}/ports/sst-shim/sst_plugininfra_wasm.cpp"
     shim/version_information.cpp
     "${EXT}/sst-plugininfra/libs/strnatcmp/strnatcmp.cpp"
     "${EXT}/MTS-ESP/Client/libMTSClient.cpp")
@@ -162,6 +90,7 @@ set(OBXF_EDITOR_SOURCES
     "${OBXF}/src/gui/LookAndFeel.cpp")
 
 set(OBXF_INCLUDE_DIRECTORIES
+    "${KIT_ROOT}/ports/sst-shim"
     "${CMAKE_CURRENT_LIST_DIR}/shim"
     "${OBXF}/src"
     "${OBXF}/src/components"
@@ -204,17 +133,7 @@ target_compile_definitions(ui PRIVATE ${OBXF_DEFINITIONS})
 target_compile_options(ui PRIVATE -Wno-deprecated-declarations -Wno-macro-redefined)
 target_link_libraries(ui PRIVATE juce_wasm)
 
-set(UI_LINK_OPTIONS
-    ${COMMON_FLAGS}
-    -sMODULARIZE=1
-    -sEXPORT_NAME=createWebclapUI
-    -sENVIRONMENT=web,worker
-    -sALLOW_MEMORY_GROWTH=1
-    -sINITIAL_MEMORY=128MB
-    -sSTACK_SIZE=2MB
-    -sFILESYSTEM=1
-    -sEXPORTED_FUNCTIONS=_malloc,_free
-    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAP32,UTF8ToString,stringToNewUTF8)
+set(UI_LINK_OPTIONS ${JUCE_WEBCLAP_UI_LINK_OPTIONS})
 
 # The factory folder (patches, bitmap theme) goes into Emscripten's filesystem at /factory, see the sst shim.
 set(FACTORY_DIR "${CMAKE_CURRENT_BINARY_DIR}/factory")
@@ -240,8 +159,7 @@ set_target_properties(ui PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${BUNDLE}/ui")
 
 # ---------------------------------------------------------------------------------------------------------------
-# module.wasm: the processor as a CLAP plugin. A standalone wasm module (no Emscripten JS), exporting clap_entry,
-# malloc and the function table, importing only WASI.
+# module.wasm: the processor as a CLAP plugin
 
 # ObxfProcessor.cpp includes the editor's header even when headless, hence the generated BinaryData.h (only the
 # header, nothing from it is linked).
@@ -257,17 +175,7 @@ target_include_directories(module PRIVATE "${GENERATED}" ${OBXF_INCLUDE_DIRECTOR
 target_compile_definitions(module PRIVATE ${OBXF_DEFINITIONS} OBXF_HEADLESS=1)
 target_compile_options(module PRIVATE -Wno-deprecated-declarations -Wno-macro-redefined)
 target_link_libraries(module PRIVATE juce_wasm_dsp)
-target_link_options(module PRIVATE
-    ${COMMON_FLAGS}
-    -sSTANDALONE_WASM=1
-    --no-entry
-    -sEXPORTED_FUNCTIONS=_malloc,_free
-    -Wl,--export=clap_entry
-    -sALLOW_MEMORY_GROWTH=1
-    -sINITIAL_MEMORY=32MB
-    -sSTACK_SIZE=1MB
-    -sALLOW_TABLE_GROWTH=1
-    -sERROR_ON_UNDEFINED_SYMBOLS=1)
+target_link_options(module PRIVATE ${JUCE_WEBCLAP_DSP_LINK_OPTIONS})
 set_target_properties(module PROPERTIES
     SUFFIX ".wasm"
     RUNTIME_OUTPUT_DIRECTORY "${BUNDLE}")

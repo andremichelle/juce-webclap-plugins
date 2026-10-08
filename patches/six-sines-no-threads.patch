@@ -1,0 +1,73 @@
+--- a/src/ui/spectrum-analyzer.cpp
++++ b/src/ui/spectrum-analyzer.cpp
+@@ -160,6 +160,9 @@
+ void SpectrumAnalyzerComponent::applyMode(int newIdx)
+ {
+     bool wasRunning = running.exchange(false);
++#if SIXSINES_NO_THREADS
++    stopTimer();
++#endif
+     if (analysisThread.joinable())
+         analysisThread.join();
+ 
+@@ -216,7 +219,12 @@
+     {
+         ring.subscribe();
+         running = true;
++#if SIXSINES_NO_THREADS
++        analysisNewSamples = 0;
++        startTimerHz(60);
++#else
+         analysisThread = std::thread(&SpectrumAnalyzerComponent::analysisThreadMain, this);
++#endif
+     }
+     if (defaults && modeIdx != lastSavedModeIdx)
+     {
+@@ -236,7 +244,7 @@
+ 
+ void SpectrumAnalyzerComponent::analysisThreadMain()
+ {
+-    int newSamples = 0;
++    auto &newSamples = analysisNewSamples;
+ 
+     while (running.load(std::memory_order_relaxed))
+     {
+@@ -282,6 +290,9 @@
+ 
+         if (!drained || windowFill < fftSize || newSamples < hopSize)
+         {
++#if SIXSINES_NO_THREADS
++            return; // the next timer callback continues
++#endif
+             std::this_thread::sleep_for(std::chrono::milliseconds(5));
+             continue;
+         }
+--- a/src/ui/spectrum-analyzer.h
++++ b/src/ui/spectrum-analyzer.h
+@@ -38,7 +38,14 @@
+ namespace baconpaul::six_sines::ui
+ {
+ 
+-struct SpectrumAnalyzerComponent : sst::jucegui::components::WindowPanel, private juce::AsyncUpdater
++// SIXSINES_NO_THREADS (WebAssembly without threads): a timer on the UI thread runs the analysis
++// passes the worker thread would run.
++struct SpectrumAnalyzerComponent : sst::jucegui::components::WindowPanel,
++                                   private juce::AsyncUpdater
++#if SIXSINES_NO_THREADS
++    ,
++                                   private juce::Timer
++#endif
+ {
+     static constexpr int spectrogramColumns = 256;
+ 
+@@ -81,6 +88,10 @@
+   private:
+     void handleAsyncUpdate() override;
+     void analysisThreadMain();
++#if SIXSINES_NO_THREADS
++    void timerCallback() override { analysisThreadMain(); }
++#endif
++    int analysisNewSamples{0}; // samples since the last FFT frame, kept across analysis passes
+ 
+     // Tear down the worker, resize buffers, rebuild FFT/window for the given mode,
+     // then restart the worker. Called from the UI thread.
