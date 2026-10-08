@@ -1,0 +1,143 @@
+# Six Sines for WebCLAP
+
+Six Sines by BaconPaul (Paul Walker), a synthesizer with audio rate modulation, ported to WebCLAP. This is not an
+official Six Sines release.
+
+- Six Sines: https://github.com/baconpaul/six-sines (commit 03f3b9a)
+- This port, and the complete source of this bundle: @SOURCE_URL@
+  Build it with `scripts/build-six-sines.sh`, which fetches every dependency below at the commit named here.
+
+## License
+
+The bundle as a whole is licensed under the **GNU Affero General Public License, version 3** (`LICENSE`).
+
+- `module.wasm` (the synthesizer) is GPL-3.0 (`licenses/GPL-3.0.txt`). Six Sines' own source is MIT, its
+  dependencies sst-basic-blocks and sst-filters are GPL-3.0, so the combined work is GPL-3.0, as upstream
+  states.
+- `ui/ui.wasm` (the editor) also contains the JUCE framework, used under the AGPL-3.0, so it is AGPL-3.0.
+  GPL-3.0 section 13 permits the combination.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the licenses for details.
+
+## Components
+
+| Component | In | Copyright | License |
+|---|---|---|---|
+| [Six Sines](https://github.com/baconpaul/six-sines), incl. factory patches and themes | both | Paul Walker and various authors | MIT |
+| WebCLAP port ([juce-webclap-plugins](https://github.com/andremichelle/juce-webclap-plugins)) | both | André Michelle | MIT |
+| [sst-basic-blocks](https://github.com/surge-synthesizer/sst-basic-blocks) | both | Surge Synth Team | GPL-3.0 |
+| [sst-filters](https://github.com/surge-synthesizer/sst-filters) | both | Surge Synth Team | GPL-3.0 |
+| [sst-voicemanager](https://github.com/surge-synthesizer/sst-voicemanager) | both | 2023, Paul Walker and others | MIT |
+| [sst-cpputils](https://github.com/surge-synthesizer/sst-cpputils) | both | 2019-2021, authors per the git log | MIT |
+| [sst-plugininfra](https://github.com/surge-synthesizer/sst-plugininfra) | both | 2019-2020, Paul Walker | MIT |
+| [TinyXML](http://www.grinninglizard.com/tinyxml/) (in sst-plugininfra) | both | Lee Thomason | zlib |
+| [strnatcmp](https://github.com/sourcefrog/natsort) (in sst-plugininfra) | both | 2000, 2004 Martin Pool | zlib |
+| [miniz](https://github.com/richgel999/miniz) | both | 2010-2014 Rich Geldreich and Tenacious Software LLC, 2013-2014 RAD Game Tools and Valve Software | MIT |
+| [libsamplerate](https://github.com/libsndfile/libsamplerate) | both | 2012-2016, Erik de Castro Lopo | BSD-2-Clause |
+| [pffft](https://github.com/surge-synthesizer/pffft) | both | 2013 Julien Pommier, 2004 UCAR | FFTPACK (BSD-style) |
+| [MTS-ESP client](https://github.com/ODDSound/MTS-ESP) | both | 2021 ODDSound Ltd. | 0BSD |
+| [CLAP](https://github.com/free-audio/clap), [clap-helpers](https://github.com/free-audio/clap-helpers) | both | 2021 Alexandre Bique | MIT |
+| [{fmt}](https://github.com/fmtlib/fmt) | both | 2012 - present, Victor Zverovich and {fmt} contributors | MIT |
+| [SIMDe](https://github.com/simd-everywhere/simde) | both | 2017 Evan Nemerson | MIT |
+| [ghc::filesystem](https://github.com/gulrak/filesystem) | both | 2018, Steffen Schümann | MIT |
+| [JUCE](https://juce.com) | ui | Raw Material Software Limited | AGPL-3.0 |
+| [sst-jucegui](https://github.com/surge-synthesizer/sst-jucegui) | ui | 2019-2021, authors per the git log | MIT |
+| [sst-clap-helpers](https://github.com/surge-synthesizer/sst-clap-helpers) | ui | 2019-2020, Paul Walker | MIT |
+| [MD4C](https://github.com/mity/md4c) (in sst-jucegui) | ui | 2016-2024 Martin Mitáš | MIT |
+| [Manrope](https://github.com/sharanda/manrope) font | ui | 2018 The Manrope Project Authors | OFL-1.1 (`licenses/OFL-Manrope.txt`) |
+| [Anonymous Pro](https://www.marksimonson.com/fonts/view/anonymous-pro) font | ui | 2009, Mark Simonson | OFL-1.1 (`licenses/OFL-AnonymousPro.txt`) |
+| [DejaVu Sans](https://dejavu-fonts.github.io) font | ui | Bitstream, Tavmjong Bah; DejaVu changes public domain | Bitstream Vera (`licenses/DejaVu.txt`) |
+
+## License texts
+
+### MIT
+
+Applies to the components marked MIT above, each under its own copyright line.
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+> documentation files (the "Software"), to deal in the Software without restriction, including without limitation
+> the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and
+> to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or substantial portions of
+> the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+> THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+> CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+> IN THE SOFTWARE.
+
+### BSD-2-Clause (libsamplerate)
+
+> Copyright (c) 2012-2016, Erik de Castro Lopo <erikd@mega-nerd.com>
+> All rights reserved.
+>
+> Redistribution and use in source and binary forms, with or without modification, are permitted provided that
+> the following conditions are met:
+>
+> 1. Redistributions of source code must retain the above copyright notice, this list of conditions and the
+>    following disclaimer.
+> 2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the
+>    following disclaimer in the documentation and/or other materials provided with the distribution.
+>
+> THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED
+> WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+> PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT,
+> INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+> SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+> THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING
+> IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+### FFTPACK (pffft)
+
+> Copyright (c) 2013 Julien Pommier (pommier@modartt.com), based on FFTPACKv4 by Dr Paul Swarztrauber of NCAR.
+>
+> Copyright (c) 2004 the University Corporation for Atmospheric Research ("UCAR"). All rights reserved. Developed
+> by NCAR's Computational and Information Systems Laboratory, UCAR, www.cisl.ucar.edu.
+>
+> Redistribution and use of the Software in source and binary forms, with or without modification, is permitted
+> provided that the following conditions are met:
+>
+> - Neither the names of NCAR's Computational and Information Systems Laboratory, the University Corporation for
+>   Atmospheric Research, nor the names of its sponsors or contributors may be used to endorse or promote products
+>   derived from this Software without specific prior written permission.
+> - Redistributions of source code must retain the above copyright notices, this list of conditions, and the
+>   disclaimer below.
+> - Redistributions in binary form must reproduce the above copyright notice, this list of conditions, and the
+>   disclaimer below in the documentation and/or other materials provided with the distribution.
+>
+> THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING, BUT NOT LIMITED
+> TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> CONTRIBUTORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+> CONSEQUENTIAL DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+> OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS WITH THE SOFTWARE.
+
+### zlib (TinyXML, strnatcmp)
+
+> This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held
+> liable for any damages arising from the use of this software.
+>
+> Permission is granted to anyone to use this software for any purpose, including commercial applications, and to
+> alter it and redistribute it freely, subject to the following restrictions:
+>
+> 1. The origin of this software must not be misrepresented; you must not claim that you wrote the original
+>    software. If you use this software in a product, an acknowledgment in the product documentation would be
+>    appreciated but is not required.
+> 2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original
+>    software.
+> 3. This notice may not be removed or altered from any source distribution.
+
+### 0BSD (MTS-ESP client)
+
+> Copyright (C) 2021 by ODDSound Ltd. info@oddsound.com
+>
+> Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby
+> granted.
+>
+> THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING
+> ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL,
+> DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+> WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE
+> USE OR PERFORMANCE OF THIS SOFTWARE.

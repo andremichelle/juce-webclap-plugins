@@ -64,7 +64,7 @@ DEPS = [
 def six_sines_filter(path):
     return (path.startswith(("src/", "resources/factory_patches/", "resources/factory_themes/", "resources/fonts/",
                              "resources/icon/", "cmake/CmakeRC.cmake"))
-            or path in ("doc/ack.md", "LICENSE", "VERSION"))
+            or path in ("doc/ack.md", "LICENSE.md", "resources/LICENSE_GPL3"))
 
 
 def include_only(path):
