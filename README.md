@@ -69,8 +69,8 @@ patches/six-sines-*.patch         Six Sines changes (spectrum analyzer without a
 ports/obxf/                       OB-Xf: CMake build of both modules, the bundle page (ui/), shims
 ports/six-sines/                  Six Sines: CMake build, the CLAP plugin with webview bridge, the editor's module
 ports/sst-shim/                   sst-plugininfra for the browser (paths, platform), shared by Surge-team ports
-licenses/                         license texts the bundles ship (AGPL-3.0 for JUCE editors)
-scripts/                          fetch-deps.py, build-<port>.sh, pack-wclap.py, binary_data.py, serve.py
+licenses/                         license texts the bundles ship (AGPL-3.0, for JUCE)
+scripts/                          fetch-deps.py, build-<port>.sh, bundle-license.sh, pack-wclap.py, binary_data.py, serve.py
 ```
 
 ## Licenses
@@ -80,8 +80,9 @@ GPL-3.0-or-later ([ports/obxf/LICENSE](ports/obxf/LICENSE)), `ports/six-sines` i
 combined work is GPL-3.0). `patches/juce-8-wasm.patch` modifies JUCE and falls under JUCE's license, the Six Sines
 patch under Six Sines' MIT license.
 
-The Six Sines bundle ships its license (`LICENSE`, AGPL-3.0), `NOTICES.md` (components, copyrights, the
-repository commit it was built from) and the longer texts in `licenses/`, see `ports/six-sines/NOTICES.md.in`.
+Each bundle ships its license (`LICENSE`, AGPL-3.0), `NOTICES.md` (components, copyrights, the repository commit
+it was built from) and the longer texts in `licenses/`, see `ports/<port>/NOTICES.md.in` and
+`scripts/bundle-license.sh`. Build hosted bundles from a clean, pushed commit, so the source link matches.
 
 Built bundles link JUCE, so they are AGPLv3 (or covered by a commercial JUCE license) and also under the port's
 license. JUCE is AGPLv3/commercial, OB-Xf is GPL-3.0-or-later, Six Sines is MIT (GPL-3.0 as built), the CLAP headers are MIT, DejaVu fonts are under the

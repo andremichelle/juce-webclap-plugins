@@ -24,6 +24,13 @@ cp "$ROOT/modules/juce_webclap/js/"*.js "$ROOT/ports/obxf/ui/"* "$BUNDLE/ui/"
 cp "$ROOT/modules/juce_webclap/test-host/"* "$WEB/"
 echo '["obxf.wclap"]' > "$WEB/bundles.json"
 
+# License and notices (LICENSE, NOTICES.md, licenses/)
+source "$ROOT/scripts/bundle-license.sh"
+bundle_license "$BUNDLE" "$ROOT/ports/obxf/NOTICES.md.in" \
+    "$ROOT/external/OB-Xf/LICENSE" GPL-3.0.txt \
+    "$ROOT/ports/obxf/OFL-Jersey20.txt" OFL-Jersey20.txt \
+    "$ROOT/external/fonts/DejaVu-LICENSE" DejaVu.txt
+
 # The archive hosts import (openDAW: Import WebCLAP...)
 python3 "$ROOT/scripts/pack-wclap.py" "$BUNDLE" "$BUILD/obxf.wclap.tar.gz"
 echo "Built $BUNDLE — serve the test host with: python3 $ROOT/scripts/serve.py $WEB"
