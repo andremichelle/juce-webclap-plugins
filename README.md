@@ -61,5 +61,10 @@ scripts/                          fetch-deps.py, build-obxf.sh, binary_data.py, 
 
 ## Licenses
 
-The kit is meant to be MIT, each port keeps its plugin's license. JUCE is AGPLv3/commercial, OB-Xf is GPL-3.0-or-later, the CLAP headers are MIT, DejaVu fonts are under the
+The kit, scripts and docs are MIT ([LICENSE](LICENSE)). Each port keeps its plugin's license: `ports/obxf` is
+GPL-3.0-or-later ([ports/obxf/LICENSE](ports/obxf/LICENSE)). `patches/juce-8-wasm.patch` modifies JUCE and falls under
+JUCE's license.
+
+Built bundles link JUCE, so they are AGPLv3 (or covered by a commercial JUCE license) and also under the port's
+license. JUCE is AGPLv3/commercial, OB-Xf is GPL-3.0-or-later, the CLAP headers are MIT, DejaVu fonts are under the
 Bitstream Vera license; none of them is checked in, `scripts/fetch-deps.py` downloads them.
