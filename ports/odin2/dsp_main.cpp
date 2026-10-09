@@ -227,11 +227,12 @@ const juce::webclap::ClapPluginInfo& juce::webclap::getClapPluginInfo()
     static const char* const features[] = { CLAP_PLUGIN_FEATURE_INSTRUMENT, CLAP_PLUGIN_FEATURE_SYNTHESIZER,
                                             "virtual analog", nullptr };
 
-    // The CLAP id of Odin's own CLAP build (clap-juce-extensions), so hosts see the same plugin
+    // The CLAP id of Odin's own CLAP build (clap-juce-extensions), so hosts see the same plugin. The vendor is the
+    // one who ships this build; NOTICES.md credits TheWaveWarden as Odin's author.
     static const ClapPluginInfo info {
         "com.thewavewarden.odin2",
         "Odin2",
-        "TheWaveWarden",
+        "audiotool",
         "https://thewavewarden.com/odin2",
         "2.4.1",
         "24-voice polyphonic synthesizer, the editor runs in the page",
