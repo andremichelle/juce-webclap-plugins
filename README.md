@@ -14,6 +14,9 @@ its plugin window.
 - [RipplerX](https://github.com/tiagolr/ripplerx): an `AudioProcessor` like OB-Xf, plus a little glue for what its
   editor does beside parameters (keyboard notes, output meter, polyphony, factory programs), see
   `ports/ripplerx/ui_main.cpp`.
+- [Odin 2](https://github.com/TheWaveWarden/odin2): an `AudioProcessor` whose editor edits the patch's
+  non-parameter trees directly; those cross over as tree properties, patch loads as one frame
+  (`ports/odin2/odin2_frames.h`).
 
 ## Build and run
 
@@ -30,6 +33,9 @@ open http://127.0.0.1:8124/
 
 scripts/build-ripplerx.sh             # and RipplerX
 python3 scripts/serve.py build/ripplerx/web 8125
+
+scripts/build-odin2.sh                # and Odin 2
+python3 scripts/serve.py build/odin2/web 8126
 open http://127.0.0.1:8125/
 ```
 
@@ -45,6 +51,8 @@ hosts import in `build/<port>/<port>.wclap.tar.gz`. Any port's bundle opens with
   A W S E D F T G Y H U J K (Z/X change octave) or a MIDI keyboard.
 - Turn knobs in the editor. The log shows the page's `gesture` begin, `param` values (at most one per parameter
   per frame) and `gesture` end, then the same as CLAP output events the host received.
+- Editors larger than the space scroll in the plugin window. The wheel scrolls it over the editor's background;
+  over a knob it turns the knob (the page passes on wheel events no control used, see `js/webclap-ui.js`).
 - **Automate** moves a parameter from the host side at 30 Hz. The editor's knob follows, nothing echoes back.
   The parameter sliders in the side panel send single values the same way.
 - BROWSE, PREV/NEXT load factory patches (packaged with the page at `/factory`). The editor sends the changed
@@ -75,9 +83,11 @@ modules/juce_webclap/             the kit
 patches/juce-8-wasm.patch         small JUCE changes (timer without thread, wasm gaps)
 patches/six-sines-*.patch         Six Sines changes (spectrum analyzer without a thread)
 patches/ripplerx-*.patch          RipplerX changes (a build without its editor, for module.wasm)
+patches/odin2-*.patch             Odin 2 changes (async dialogs, bitmaps without threads, the port's hooks)
 ports/obxf/                       OB-Xf: CMake build of both modules, the bundle page (ui/), shims
 ports/six-sines/                  Six Sines: CMake build, the CLAP plugin with webview bridge, the editor's module
 ports/ripplerx/                   RipplerX: CMake build, the module's PageExtension, the editor's glue
+ports/odin2/                      Odin 2: CMake build, the module's PageExtension, the editor's glue
 ports/sst-shim/                   sst-plugininfra for the browser (paths, platform), shared by Surge-team ports
 licenses/                         license texts the bundles ship (AGPL-3.0, for JUCE)
 scripts/                          fetch-deps.py, build-<port>.sh, bundle-license.sh, pack-wclap.py, binary_data.py, serve.py
@@ -87,7 +97,8 @@ scripts/                          fetch-deps.py, build-<port>.sh, bundle-license
 
 The kit, scripts and docs are MIT ([LICENSE](LICENSE)). Each port keeps its plugin's license: `ports/obxf` is
 GPL-3.0-or-later ([ports/obxf/LICENSE](ports/obxf/LICENSE)), `ports/ripplerx` GPL-3.0
-([ports/ripplerx/LICENSE](ports/ripplerx/LICENSE)), `ports/six-sines` MIT like Six Sines' source (whose combined work
+([ports/ripplerx/LICENSE](ports/ripplerx/LICENSE)), `ports/odin2` GPL-3.0-or-later
+([ports/odin2/LICENSE](ports/odin2/LICENSE)), `ports/six-sines` MIT like Six Sines' source (whose combined work
 is GPL-3.0). `patches/juce-8-wasm.patch` modifies JUCE and falls under JUCE's license, the other patches under their
 plugin's license.
 
@@ -96,6 +107,7 @@ it was built from) and the longer texts in `licenses/`, see `ports/<port>/NOTICE
 `scripts/bundle-license.sh`. Build hosted bundles from a clean, pushed commit, so the source link matches.
 
 Built bundles link JUCE, so they are AGPLv3 (or covered by a commercial JUCE license) and also under the port's
-license. JUCE is AGPLv3/commercial, OB-Xf is GPL-3.0-or-later, RipplerX GPL-3.0, Six Sines MIT (GPL-3.0 as built),
+license. JUCE is AGPLv3/commercial, OB-Xf is GPL-3.0-or-later, RipplerX GPL-3.0, Odin 2 GPL-3.0-or-later (its Aldrich font
+OFL-1.1), Six Sines MIT (GPL-3.0 as built),
 the CLAP headers MIT, the DejaVu fonts under the Bitstream Vera license; none of them is checked in,
 `scripts/fetch-deps.py` downloads them.

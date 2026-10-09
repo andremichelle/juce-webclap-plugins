@@ -8,6 +8,7 @@
 const TYPES = {1: "hello", 2: "snapshot", 3: "param", 4: "gesture", 5: "state", 6: "stream", 7: "resize"}
 
 const frame = document.getElementById("plugin")
+const viewport = document.getElementById("viewport")
 const paramsView = document.getElementById("params")
 const logView = document.getElementById("log")
 const rows = new Map()   // clapId -> {root, range, value, info}
@@ -135,6 +136,11 @@ window.addEventListener("message", event => {
     if (bytes) {
         logFrame("in", bytes)
         node.port.postMessage({type: "receive", bytes}, [bytes])
+    } else if (data && data.webclapWheel) {
+        // Wheel events the editor did not use (over its background, not over a knob): scroll the plugin window
+        const {deltaX, deltaY, deltaMode} = data.webclapWheel
+        const unit = deltaMode === 1 ? 16 : deltaMode === 2 ? viewport.clientHeight : 1
+        viewport.scrollBy(deltaX * unit, deltaY * unit)
     } else if (data && data.webclapDebug) {
         debug(data)
     }

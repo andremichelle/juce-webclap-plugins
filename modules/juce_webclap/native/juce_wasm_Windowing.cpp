@@ -103,6 +103,9 @@ public:
     ModifierKeys currentModifiers() const { return ModifierKeys (keyboardFlags | buttonFlags); }
 };
 
+// Set by Component::mouseWheelMove when a wheel event bubbles up past the window (patches/juce-8-wasm.patch)
+extern bool webclapWheelUnused;
+
 //==============================================================================
 class WasmComponentPeer final : public ComponentPeer
 {
@@ -115,17 +118,6 @@ public:
         auto& desktop = WasmDesktop::get();
         scale = desktop.pixelRatio;
         bounds = comp.getBounds();
-
-        // The first ordinary window is the plugin's editor. It owns the canvas: its size is the desktop size.
-        if (desktop.mainPeer == nullptr && (windowStyleFlags & windowIsTemporary) == 0)
-        {
-            desktop.mainPeer = this;
-            bounds.setPosition (0, 0);
-
-            // Editors created after init (once the DSP side's state is in) still size the canvas
-            juce_webclap_js_request_size (bounds.getWidth(), bounds.getHeight());
-        }
-
         desktop.peers.push_back (this);
 
         getNativeRealtimeModifiers = [] { return WasmDesktop::get().currentModifiers(); };
@@ -145,6 +137,23 @@ public:
 
     bool isMainPeer() const noexcept { return WasmDesktop::get().mainPeer == this; }
 
+    /** The first ordinary window that is shown is the plugin's editor. It owns the canvas: its size is the desktop
+        size. Shown, not created: a TopLevelWindow (an AlertWindow a plugin keeps as a member) is on the desktop,
+        hidden, from its constructor on. */
+    void becomeMainPeerIfFirst()
+    {
+        auto& desktop = WasmDesktop::get();
+
+        if (desktop.mainPeer != nullptr || (getStyleFlags() & windowIsTemporary) != 0)
+            return;
+
+        desktop.mainPeer = this;
+        bounds.setPosition (0, 0);
+
+        // Editors created after init (once the DSP side's state is in) still size the canvas
+        juce_webclap_js_request_size (bounds.getWidth(), bounds.getHeight());
+    }
+
     //==============================================================================
     void* getNativeHandle() const override { return (void*) this; }
 
@@ -154,6 +163,10 @@ public:
             return;
 
         visible = shouldBeVisible;
+
+        if (visible)
+            becomeMainPeerIfFirst();
+
         WasmDesktop::get().invalidateLogical (bounds);
 
         if (visible)
@@ -896,15 +909,19 @@ namespace webclap
                                   Time::currentTimeMillis());
     }
 
-    void wheel (float x, float y, float deltaX, float deltaY, bool isSmooth, int modifiers)
+    bool wheel (float x, float y, float deltaX, float deltaY, bool isSmooth, int modifiers)
     {
         auto& desktop = WasmDesktop::get();
         const auto position = Point<float> (x, y);
         updateKeyboardFlags (modifiers);
         desktop.lastMousePosition = position;
 
+        webclapWheelUnused = true;
+
         if (auto* target = desktop.peerAt (position))
         {
+            webclapWheelUnused = false;
+
             MouseWheelDetails details;
             details.deltaX = deltaX;
             details.deltaY = deltaY;
@@ -915,6 +932,8 @@ namespace webclap
             target->handleMouseWheel (MouseInputSource::InputSourceType::mouse, target->globalToLocal (position),
                                       Time::currentTimeMillis(), details);
         }
+
+        return ! webclapWheelUnused;
     }
 
     bool key (bool isDown, int keyCode, juce_wchar textCharacter, int modifiers)

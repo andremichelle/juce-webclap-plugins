@@ -4,7 +4,7 @@
 Identifiers follow juce_build_tools::makeValidIdentifier, so code written against juceaide's output
 (BinaryData::icon_svg, getNamedResource ("knoblayer1_svg", size), ...) compiles unchanged.
 
-Usage: binary_data.py <out_dir> <namespace> <file>...
+Usage: binary_data.py <out_dir> <namespace> <file>...    (@list reads file names from list, one per line)
 """
 
 import os
@@ -18,10 +18,9 @@ RESERVED = {"auto", "break", "case", "char", "class", "const", "continue", "defa
 
 
 def identifier(filename):
-    name = filename
-    for c in ".,;:/@":
-        name = name.replace(c, "_")
-    name = "".join(c for c in name.replace(" ", "_") if c in ALLOWED)
+    # makeBinaryDataIdentifierName: spaces and dots become underscores, every other character outside
+    # [A-Za-z0-9_] is dropped ("Chello (MW,AT).odin" -> Chello_MWAT_odin)
+    name = "".join(c for c in filename.replace(" ", "_").replace(".", "_") if c in ALLOWED)
     if not name:
         name = "unknown"
     if name[0].isdigit():
@@ -32,7 +31,9 @@ def identifier(filename):
 
 
 def main():
-    out_dir, namespace, files = sys.argv[1], sys.argv[2], sys.argv[3:]
+    out_dir, namespace, files = sys.argv[1], sys.argv[2], []
+    for arg in sys.argv[3:]:
+        files += [line for line in open(arg[1:]).read().splitlines() if line] if arg.startswith("@") else [arg]
     os.makedirs(out_dir, exist_ok=True)
 
     names, used = [], set()

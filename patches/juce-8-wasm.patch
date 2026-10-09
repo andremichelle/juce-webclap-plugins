@@ -123,6 +123,32 @@ diff --color -ruN a/modules/juce_events/timers/juce_Timer.cpp b/modules/juce_eve
  
      struct TimerCountdown
      {
+diff --color -ruN a/modules/juce_gui_basics/components/juce_Component.cpp b/modules/juce_gui_basics/components/juce_Component.cpp
+--- a/modules/juce_gui_basics/components/juce_Component.cpp
++++ b/modules/juce_gui_basics/components/juce_Component.cpp
+@@ -2034,12 +2034,22 @@
+ void Component::mouseDrag  (const MouseEvent&)          {}
+ void Component::mouseMove  (const MouseEvent&)          {}
+ void Component::mouseDoubleClick (const MouseEvent&)    {}
++
++#if JUCE_WASM
++ // juce_webclap: set when a wheel event reached a window without being used (webclap::wheel returns it, the page
++ // passes such events on to its host, which may scroll)
++ bool webclapWheelUnused = false;
++#endif
+ 
+ void Component::mouseWheelMove (const MouseEvent& e, const MouseWheelDetails& wheel)
+ {
+     // the base class just passes this event up to the nearest enabled ancestor
+     if (auto* enabledComponent = findFirstEnabledAncestor (getParentComponent()))
+         enabledComponent->mouseWheelMove (e.getEventRelativeTo (enabledComponent), wheel);
++   #if JUCE_WASM
++    else
++        webclapWheelUnused = true;
++   #endif
+ }
+ 
+ void Component::mouseMagnify (const MouseEvent& e, float magnifyAmount)
 diff --color -ruN a/modules/juce_gui_basics/juce_gui_basics.cpp b/modules/juce_gui_basics/juce_gui_basics.cpp
 --- a/modules/juce_gui_basics/juce_gui_basics.cpp	2026-10-07 16:16:07
 +++ b/modules/juce_gui_basics/juce_gui_basics.cpp	2026-10-07 16:16:08

@@ -68,8 +68,9 @@ namespace juce::webclap
         modifiers: 1 shift, 2 ctrl, 4 alt, 8 meta. */
     void mouse (MouseEventType type, float x, float y, int buttons, int modifiers);
 
-    /** Wheel deltas in JUCE units (positive deltaY scrolls up). */
-    void wheel (float x, float y, float deltaX, float deltaY, bool isSmooth, int modifiers);
+    /** Wheel deltas in JUCE units (positive deltaY scrolls up). Returns false if no component used the event
+        (it reached a window: no slider, viewport or the like under the pointer), so the page can pass it on. */
+    bool wheel (float x, float y, float deltaX, float deltaY, bool isSmooth, int modifiers);
 
     /** Key input. keyCode uses the KeyPress codes of this platform (see juce_wasm_Windowing.cpp),
         textCharacter is the produced character or 0. Returns true if a component used the key. */

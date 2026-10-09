@@ -1,17 +1,22 @@
 /*
-    RipplerX editor as ui.wasm.
+    Odin 2 editor as ui.wasm.
 
-    The stand-in processor is RipplerX's own RipplerXAudioProcessor, never processing audio, as in the OB-Xf port.
-    The editor is parameter-driven (APVTS attachments); the glue for the rest lives here:
+    The stand-in processor is Odin's own OdinAudioProcessor, never processing audio, as in the OB-Xf and RipplerX
+    ports. Parameters go through the kit's generic path. Odin keeps the rest of a patch in child trees of its value
+    tree, which the editor edits directly; the glue for that and the rest lives here (frames in odin2_frames.h):
 
-      - the on-screen keyboard plays into the processor's keyboardState: forwarded as midi frames
-      - the output meter reads rmsValue: filled from the DSP side's meter frames
-      - polyphony is a setting outside state and parameters: sent as a polyphony frame when it changes
-      - picking a factory program: sent as a program frame ahead of the program's values, so the DSP side loads
-        it the way a native host would (see ripplerx_frames.h), and a reopened editor shows the program's name
-      - UI scale is a transform on the editor: the window takes the scaled size
-      - the editor reads currentProgram only when it is constructed, so it is created once the DSP side's
-        snapshot is in (or after a second without an answer), not before
+      - patch loads (browser, init button): the editor calls readPatch, which this side forwards as a readPatch
+        frame, so the DSP side loads the patch itself
+      - tree edits (mod matrix, drawn waveforms, FX order, play mode, ...): a mirror holds what the DSP side has,
+        each frame sends the properties that differ
+      - the tuning (part of the state, not of the tree): sent when its text changes
+      - the arpeggiator's step LED and the wheels as MIDI moved them: from the DSP side's frames
+      - the editor reads the patch only when it is constructed, so it is created once the DSP side's snapshot is
+        in (or after a second without an answer)
+
+    After a patch load, a remote state or creating the editor, the editor settles (forceValueTreeOntoComponents
+    and the components write values back); for a few frames the mirror follows the stand-in instead of sending.
+    Frames, not milliseconds: the editor's first frame scales its bitmaps and can take seconds.
 
     Exports (called from webclap-ui.js):
         wclap_ui_init, wclap_ui_frame, wclap_ui_set_desktop, wclap_ui_mouse, wclap_ui_wheel, wclap_ui_key,
@@ -25,7 +30,7 @@
 #include <juce_webclap/juce_webclap_bridge.h>
 
 #include "PluginProcessor.h"
-#include "ripplerx_frames.h"
+#include "odin2_frames.h"
 #include "WebFonts.h"
 
 EM_JS (void, wclap_js_send, (const void* data, int size), {
@@ -35,7 +40,9 @@ EM_JS (void, wclap_js_send, (const void* data, int size), {
 
 namespace
 {
-/** The plugin window: the editor scales itself with a transform (UI Scale menu), the window follows. */
+using namespace odin2_webclap;
+
+/** The plugin window: the editor sets its own size (zoom menu), the window follows. */
 struct Window final : juce::Component, private juce::ComponentListener
 {
     explicit Window (std::unique_ptr<juce::AudioProcessorEditor> e) : editor (std::move (e))
@@ -50,8 +57,7 @@ struct Window final : juce::Component, private juce::ComponentListener
     void fit()
     {
         editor->setTopLeftPosition (0, 0);
-        const auto bounds = editor->getBoundsInParent(); // with the scale transform applied
-        setSize (bounds.getRight(), bounds.getBottom());
+        setSize (editor->getWidth(), editor->getHeight());
     }
 
     void componentMovedOrResized (juce::Component&, bool, bool) override { fit(); }
@@ -62,18 +68,29 @@ struct Window final : juce::Component, private juce::ComponentListener
 struct App
 {
     std::unique_ptr<juce::ScopedJuceInitialiser_GUI> juce;
-    std::unique_ptr<RipplerXAudioProcessor> processor;
+    std::unique_ptr<OdinAudioProcessor> processor;
     std::unique_ptr<juce::webclap::ProcessorBridge> bridge;
     std::unique_ptr<Window> window;
+    std::map<juce::String, juce::ValueTree> mirror; // the child trees as the DSP side has them
+    juce::String sentScl, sentKbm;
+    int settleFrames = 0;
+    bool applyingRemote = false; // inside a frame from the DSP side
+    bool patchSent = false;      // a readPatch frame went out since the last frame
     int lastWidth = 0, lastHeight = 0;
-    int sentPolyphony = -1, knownProgram = -1;
-    float lastScale = 1.0f;
     double pixelRatio = 1.0, startTime = -1.0;
 };
 
 App* app = nullptr;
 
+constexpr int framesToSettle = 10;
+
 void sendToHost (const void* data, size_t size) { wclap_js_send (data, (int) size); }
+
+/** Takes what the stand-in has as what the DSP side has, for the next framesToSettle frames. */
+void settle()
+{
+    app->settleFrames = framesToSettle;
+}
 
 void createWindow()
 {
@@ -90,37 +107,86 @@ void createWindow()
     app->window->addToDesktop (0);
     app->window->setVisible (true);
     app->bridge->sendResize (app->lastWidth, app->lastHeight);
+    settle();
+}
+
+void sendTreeProperty (const juce::String& child, const juce::Identifier& property, const juce::var& value)
+{
+    juce::MemoryOutputStream out;
+    out.writeString (child); // writeString includes the terminating 0, operator<< does not
+    out.writeString (property.toString());
+    value.writeToStream (out);
+    app->bridge->sendPluginFrame (tree, out.getData(), out.getDataSize());
 }
 
 /** The glue that is not parameters, once per frame. */
 void syncNonParameterState()
 {
     auto& p = *app->processor;
+    const auto settling = app->settleFrames > 0;
 
-    if (p.polyphony != app->sentPolyphony)
+    for (const auto* name : trees)
     {
-        app->sentPolyphony = p.polyphony;
-        const auto voices = (int32_t) p.polyphony;
-        app->bridge->sendPluginFrame (ripplerx_webclap::polyphony, &voices, sizeof (voices));
-    }
+        const auto child = p.getValueTreeState().state.getChildWithName (name);
+        auto& known = app->mirror[name];
 
-    // Goes out now, the program's values with the next flush
-    if (p.currentProgram != app->knownProgram)
-    {
-        app->knownProgram = p.currentProgram;
-
-        if (p.currentProgram >= 0)
+        if (settling || ! known.isValid())
         {
-            const auto program = (int32_t) p.currentProgram;
-            app->bridge->sendPluginFrame (ripplerx_webclap::program, &program, sizeof (program));
+            known = child.createCopy();
+            continue;
+        }
+
+        for (int i = 0; i < child.getNumProperties(); ++i)
+        {
+            const auto property = child.getPropertyName (i);
+            const auto& value = child[property];
+
+            if (! known.hasProperty (property) || known[property] != value)
+            {
+                known.setProperty (property, value, nullptr);
+                sendTreeProperty (name, property, value);
+            }
         }
     }
 
-    // AudioProcessorEditor::setScaleFactor changes the transform without moving or resizing the editor
-    if (p.scale != app->lastScale && app->window != nullptr)
+    const auto& scl = p.m_tuning.scale.rawText;
+    const auto& kbm = p.m_tuning.keyboardMapping.rawText;
+
+    if (settling)
     {
-        app->lastScale = p.scale;
-        app->window->fit();
+        app->sentScl = scl;
+        app->sentKbm = kbm;
+    }
+    else if (app->sentScl != juce::StringRef (scl) || app->sentKbm != juce::StringRef (kbm))
+    {
+        app->sentScl = scl;
+        app->sentKbm = kbm;
+        juce::MemoryOutputStream out;
+        out.writeString (app->sentScl);
+        out.writeString (app->sentKbm);
+        app->bridge->sendPluginFrame (tuning, out.getData(), out.getDataSize());
+    }
+}
+
+void onPluginFrame (juce::uint8 type, const juce::uint8* payload, size_t size)
+{
+    auto& p = *app->processor;
+
+    if (type == arpStep && size == sizeof (int32_t))
+    {
+        int32_t step;
+        std::memcpy (&step, payload, sizeof (step));
+        p.m_step_led_active.set (step);
+    }
+    else if (type == wheels && size == 2 * sizeof (float))
+    {
+        float values[2];
+        std::memcpy (values, payload, sizeof (values));
+        auto& state = p.getValueTreeState();
+        state.getRawParameterValue ("pitchbend")->store (values[0]);
+        state.getRawParameterValue ("modwheel")->store (values[1]);
+        p.updatePitchWheelGUI (values[0]);
+        p.updateModWheelGUI (values[1]);
     }
 }
 } // namespace
@@ -146,24 +212,29 @@ EMSCRIPTEN_KEEPALIVE int wclap_ui_init (double pixelRatio)
 
     app->juce = std::make_unique<juce::ScopedJuceInitialiser_GUI>();
 
-    app->processor = std::make_unique<RipplerXAudioProcessor>();
+    app->processor = std::make_unique<OdinAudioProcessor>();
     app->processor->setRateAndBufferSizeDetails (48000.0, 512);
     app->processor->prepareToPlay (48000.0, 512);
-    app->knownProgram = app->processor->currentProgram;
-    app->lastScale = app->processor->scale;
 
     app->bridge = std::make_unique<juce::webclap::ProcessorBridge> (*app->processor, sendToHost);
-    app->bridge->forwardKeyboard (app->processor->keyboardState);
-    app->bridge->onRemoteState = [] { app->knownProgram = app->processor->currentProgram; };
-    app->bridge->onPluginFrame = [] (juce::uint8 type, const juce::uint8* payload, size_t size)
+    app->bridge->onRemoteState = [] { settle(); };
+    app->bridge->onPluginFrame = onPluginFrame;
+
+    app->processor->onReadPatch = [] (const juce::ValueTree& patch)
     {
-        if (type == ripplerx_webclap::meter && size == sizeof (float))
-        {
-            float rms;
-            std::memcpy (&rms, payload, sizeof (rms));
-            app->processor->rmsValue.store (rms, std::memory_order_release);
-        }
+        if (app->applyingRemote)
+            return; // a state from the DSP side (setStateInformation reads it as a patch): it has it already
+
+        juce::MemoryOutputStream out;
+        patch.writeToStream (out);
+        app->bridge->sendPluginFrame (readPatch, out.getData(), out.getDataSize());
+        app->patchSent = true;
+        settle();
     };
+
+    // The mirror and the tuning start as the stand-in's init patch, which the DSP side has as well
+    settle();
+    syncNonParameterState();
 
     // The editor follows in wclap_ui_frame, once the DSP side's patch is in
     app->bridge->sendHello();
@@ -184,9 +255,15 @@ EMSCRIPTEN_KEEPALIVE int wclap_ui_frame (double timeMs)
 
     const auto changed = juce::webclap::tick (timeMs);
     syncNonParameterState();
+    app->settleFrames = juce::jmax (0, app->settleFrames - 1);
+
+    // The DSP side loads the patch itself: the values it set on the stand-in are not news there
+    if (std::exchange (app->patchSent, false))
+        app->bridge->assumeRemoteHasCurrentValues();
+
     app->bridge->flush();
 
-    if (app->window != nullptr && app->window->getWidth() != app->lastWidth || app->window->getHeight() != app->lastHeight)
+    if (app->window != nullptr && (app->window->getWidth() != app->lastWidth || app->window->getHeight() != app->lastHeight))
     {
         app->lastWidth = app->window->getWidth();
         app->lastHeight = app->window->getHeight();
@@ -239,8 +316,11 @@ EMSCRIPTEN_KEEPALIVE void wclap_ui_clipboard (const char* utf8)
 /** A protocol frame from the DSP side (relayed by the host). */
 EMSCRIPTEN_KEEPALIVE void wclap_ui_receive (const uint8_t* data, int size)
 {
-    if (app != nullptr)
-        app->bridge->receive (data, (size_t) size);
+    if (app == nullptr)
+        return;
+
+    const juce::ScopedValueSetter<bool> remote (app->applyingRemote, true);
+    app->bridge->receive (data, (size_t) size);
 }
 
 /** Parameter list as JSON, for test hosts that have no DSP module to ask. Not part of the protocol. */

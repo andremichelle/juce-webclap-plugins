@@ -23,10 +23,12 @@ h2 button { margin-left: auto; }
 #stats { color: var(--muted); font-variant-numeric: tabular-nums; }
 
 main { display: flex; gap: 16px; padding: 16px; height: calc(100% - 46px); min-height: 0; }
-#window { flex: none; display: flex; flex-direction: column; max-width: 100%; overflow: auto; }
+#window { flex: 0 1 auto; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+/* Scrolls editors larger than the space left by the side panel; the title bar and the keyboard stay in place */
+#viewport { flex: 0 1 auto; min-height: 0; overflow: auto; border: 1px solid var(--line); background: #181818; }
 .titlebar { display: flex; align-items: center; gap: 10px; padding: 6px 10px; background: var(--panel); border: 1px solid var(--line); border-bottom: none; border-radius: 6px 6px 0 0; color: var(--muted); }
 .titlebar button { margin-left: auto; }
-iframe { display: block; border: 1px solid var(--line); background: #181818; width: 800px; height: 450px; }
+iframe { display: block; border: none; background: #181818; width: 800px; height: 450px; }
 
 aside { flex: 1; min-width: 300px; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
 aside section { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; }

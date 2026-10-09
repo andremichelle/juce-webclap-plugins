@@ -6,9 +6,10 @@ plugin's audio code runs as an ordinary WebCLAP somewhere else. The UI never run
 Status: OB-Xf runs as a complete WebCLAP bundle (phases 0 and 1): `module.wasm` plays in an AudioWorklet test
 host, its unmodified editor runs as `ui.wasm` in the webview page, parameters, gestures and state round-trip. Six
 Sines (phase 4) runs the same way, with streams for its meters and spectrum analyzer, and RipplerX with the kit's
-first generic extras (keyboard notes, port frames on the AudioProcessor path). Not yet tried in openDAW (phase 2).
-See "Prototype findings", "DSP module findings", "Six Sines findings", "RipplerX findings" and README.md. Written
-2026-10-07, Six Sines and RipplerX 2026-10-08.
+first generic extras (keyboard notes, port frames on the AudioProcessor path), and Odin 2, whose editor edits
+non-parameter trees directly. Not yet tried in openDAW (phase 2). See "Prototype findings", "DSP module findings",
+"Six Sines findings", "RipplerX findings", "Odin 2 findings" and README.md. Written 2026-10-07, Six Sines and
+RipplerX 2026-10-08, Odin 2 2026-10-09.
 
 ## Goal
 
@@ -302,6 +303,49 @@ wrapper and `ProcessorBridge`. What its editor does beside parameters became kit
 - **Open.** Popup menus taller than the canvas are clipped (the preset list). Importing presets and user mallet
   samples goes through JUCE's file browser over the in-memory filesystem. A preset imported from a file reaches the
   DSP side value by value, so the ratio reset above can still hit it.
+
+## Odin 2 findings (2026-10-09)
+
+Odin 2 (TheWaveWarden, GPL-3.0-or-later) is an `AudioProcessor` with an APVTS, so it takes the RipplerX path. Its
+editor reaches past parameters more than RipplerX's: most of a patch beside the 258 parameters (oscillator and
+filter types, mod matrix, drawn waveforms, FX order, LFO and arpeggiator settings) lives in child trees of the
+APVTS state ("osc", "fx", "mod", "lfo", "misc", "draw", "midi_learn"), which the editor writes directly and the
+processor follows through tree listeners.
+
+- **Tree properties cross over.** The UI side mirrors what the DSP side has of those trees and sends the
+  properties that differ, once per frame (`tree` frames, `ports/odin2/odin2_frames.h`). Setting them on the DSP
+  side's tree fires Odin's own listeners. Where the editor calls the processor instead of a listener reacting
+  (play mode, FX order, drawn wavetables), the page extension makes the same call; drawn tables are rebuilt at
+  most 30 times a second, not per moved point.
+- **Patch loads are one frame.** A `readPatch` hook (`patches/odin2-webclap.patch`) sends the patch the editor
+  loads; the DSP side runs `readPatch` itself. The bridge then takes the stand-in's values as known
+  (`ProcessorBridge::assumeRemoteHasCurrentValues`), and port frames now run as page edits on the DSP side
+  (parameter changes go to the host, not back to the page; non-parameter changes mark the host state dirty).
+  Before that, a preset load sent 30 values one way and 760 the other.
+- **Settling counts frames.** After a patch load, a remote state or creating the editor, components write values
+  back. The mirror follows the stand-in for 10 frames instead of 300 ms: the editor's first frame takes 450 ms.
+- **No modal loops.** Odin uses `PopupMenu::show` for every dropdown and blocking OK/Cancel boxes in its patch
+  browser. `patches/odin2-async-dialogs.patch` makes them asynchronous, which also works on desktop.
+- **Bitmaps.** 1,248 PNGs drawn for 200 %, scaled to the zoom on 16 threads and cached as files on desktop.
+  `patches/odin2-no-threads.patch` scales each when it is first drawn.
+- **Font metrics.** Labels were cut off ("Detun", "Maste"). Aldrich's hhea ascent+descent (0.93 em) and OS/2 win
+  metrics (1.2 em) differ; JUCE sizes text by them, Windows by win, CoreText and the kit's HarfBuzz typefaces by
+  hhea. Odin's layout is sized for Windows and scales by 0.81 on macOS; the browser build scales by the exact ratio.
+  The fonts of the other ports have equal metrics.
+- **Kit fixes it brought up.** A hidden `TopLevelWindow` (an `AlertWindow` member) became the canvas owner: the
+  main window is now the first ordinary window shown, not created. Wheel events no component used (they bubble
+  past the window, `patches/juce-8-wasm.patch`) go to the host page, which may scroll; the test host's plugin
+  window scrolls. `binary_data.py` names resources exactly like juceaide (other characters are dropped, not
+  replaced: "Chello (MW,AT)").
+- **DSP module.** Upstream's `setStateInformation` shows a message box for newer patches: that pulled JUCE's
+  windowing (and its `env` imports) into `module.wasm`; `ODIN_HEADLESS` leaves it out.
+- **Size.** `module.wasm` 13.3 MB, `ui.wasm` 38.8 MB (22.5 MB gzipped), the archive 26.9 MB. 10.8 MB of both
+  modules is Odin's 160 built-in wavetables (33 band-limited subtables of 512 floats each, which could be computed
+  at load), `ui.wasm` also holds 22 MB of bitmaps and the 4.4 MB factory presets. UI init 190 ms, first frame 450 ms.
+- **Open.** MIDI learn (the editor arms it on the stand-in, MIDI arrives at the DSP side), tree changes the DSP
+  side makes on its own (none known besides MIDI learn) are not sent to the page. Importing presets, soundbanks and
+  tunings goes through the in-memory `/user`. The soundbank column of the preset browser stays empty. Bitmaps are
+  drawn at the zoom's resolution, so they are soft at a device pixel ratio of 2.
 
 ## Open questions
 

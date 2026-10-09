@@ -23,6 +23,7 @@
 
 #include "juce_webclap_protocol.h"
 
+#include <algorithm>
 #include <cstring>
 #include <functional>
 #include <map>
@@ -247,6 +248,18 @@ public:
 
         if (std::exchange (stateChanged, false))
             sendState (0);
+    }
+
+    /** The DSP side has the values the stand-in has now: the port had it load the same thing (a patch frame).
+        Values changed since the last flush are not sent; gestures are. */
+    void assumeRemoteHasCurrentValues()
+    {
+        for (auto& [id, parameter] : parametersById)
+            remoteValues[id] = parameter->getValue();
+
+        pending.erase (std::remove_if (pending.begin(), pending.end(), [] (const Event& e) { return ! e.isGesture; }),
+                       pending.end());
+        pendingValue.clear();
     }
 
     int getSnapshotsReceived() const noexcept { return snapshotsReceived; }

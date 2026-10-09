@@ -59,7 +59,9 @@ namespace juce::webclap
 
         virtual ~PageExtension() = default;
 
-        /** A port frame from the page. */
+        /** A port frame from the page. Parameter changes made here go to the host, not back to the page (it
+            made them on its stand-in already); updateHostDisplay with nonParameterStateChanged marks the host's
+            state dirty. */
         virtual void receive (AudioProcessor&, std::uint8_t type, const void* payload, std::size_t size) {}
 
         /** Called about 30 times a second while the page is open: send it what it shows (meters). */

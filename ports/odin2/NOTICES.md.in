@@ -1,0 +1,56 @@
+# Odin 2 for WebCLAP
+
+Odin 2 by TheWaveWarden, a 24-voice polyphonic synthesizer, ported to WebCLAP. This is not an official Odin 2
+release.
+
+- Odin 2: https://github.com/TheWaveWarden/odin2 (commit 265e9e2, version 2.4.1)
+- This port, and the complete source of this bundle: @SOURCE_URL@
+  Build it with `scripts/build-odin2.sh`, which fetches every dependency below at the commit named here and applies
+  the changes in `patches/odin2-*.patch`.
+
+## License
+
+The bundle as a whole is licensed under the **GNU Affero General Public License, version 3** (`LICENSE`).
+
+Odin 2 is GPL-3.0-or-later (`licenses/GPL-3.0.txt`), except its Aldrich font. Both modules contain the JUCE framework,
+used under the AGPL-3.0, so `module.wasm` and `ui/ui.wasm` are AGPL-3.0. GPL-3.0 section 13 permits the combination.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the licenses for details.
+
+Odin's reverb is adapted from Fons Adriaensen's [zita-rev1](https://github.com/royvegard/zita-rev1) (GPL).
+
+## Components
+
+| Component | In | Copyright | License |
+|---|---|---|---|
+| [Odin 2](https://github.com/TheWaveWarden/odin2), incl. wavetables, presets and graphics | both | 2020-2021 TheWaveWarden | GPL-3.0-or-later |
+| WebCLAP port ([juce-webclap-plugins](https://github.com/andremichelle/juce-webclap-plugins)) | both | André Michelle | MIT |
+| [JUCE](https://juce.com) | both | Raw Material Software Limited | AGPL-3.0 |
+| [tuning-library](https://github.com/surge-synthesizer/tuning-library) | both | 2019-2020 Paul Walker | MIT |
+| [JSON for Modern C++](https://github.com/nlohmann/json) | ui | 2013-2022 Niels Lohmann | MIT |
+| [CLAP](https://github.com/free-audio/clap) | module | 2021 Alexandre Bique | MIT |
+| Aldrich font | ui | 2011 Matthew Desmond | SIL Open Font License 1.1 (`licenses/OFL-1.1-Aldrich.txt`) |
+| [DejaVu Sans](https://dejavu-fonts.github.io) font | ui | Bitstream, Tavmjong Bah; DejaVu changes public domain | Bitstream Vera (`licenses/DejaVu.txt`) |
+
+@JUCE_BUNDLED@
+
+## License texts
+
+### MIT
+
+Applies to the components marked MIT above, each under its own copyright line.
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+> documentation files (the "Software"), to deal in the Software without restriction, including without limitation
+> the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and
+> to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or substantial portions of
+> the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+> THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+> CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+> IN THE SOFTWARE.

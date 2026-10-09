@@ -407,8 +407,8 @@ private:
     void audioProcessorChanged (AudioProcessor*, const ChangeDetails& details) override
     {
         // The page is not told: it changes the same state on its own stand-in processor, and a state echo
-        // would make both sides reload each other's patches.
-        if (details.nonParameterStateChanged && origin == Origin::plugin && hostState != nullptr)
+        // would make both sides reload each other's patches. The host is, unless it loaded the state itself.
+        if (details.nonParameterStateChanged && origin != Origin::host && hostState != nullptr)
             hostState->mark_dirty (host);
     }
 
@@ -502,7 +502,13 @@ private:
 
             default:
                 if (type >= protocol::firstPluginType && extension != nullptr)
+                {
+                    // What a port frame changes, the page changed on its stand-in already (a program or patch
+                    // load): parameters go to the host only, as for page edits
+                    const ScopedValueSetter<Origin> scope (origin, Origin::page);
                     extension->receive (*processor, type, r.p, (size_t) (r.end - r.p));
+                    requestHostFlush();
+                }
 
                 break;
         }

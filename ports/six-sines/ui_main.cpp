@@ -339,10 +339,10 @@ EMSCRIPTEN_KEEPALIVE void wclap_ui_mouse(int type, float x, float y, int buttons
     juce::webclap::mouse((juce::webclap::MouseEventType)type, x, y, buttons, modifiers);
 }
 
-EMSCRIPTEN_KEEPALIVE void wclap_ui_wheel(float x, float y, float deltaX, float deltaY, int isSmooth,
-                                         int modifiers)
+EMSCRIPTEN_KEEPALIVE int wclap_ui_wheel(float x, float y, float deltaX, float deltaY, int isSmooth,
+                                        int modifiers)
 {
-    juce::webclap::wheel(x, y, deltaX, deltaY, isSmooth != 0, modifiers);
+    return juce::webclap::wheel(x, y, deltaX, deltaY, isSmooth != 0, modifiers) ? 1 : 0;
 }
 
 EMSCRIPTEN_KEEPALIVE int wclap_ui_key(int isDown, int keyCode, int textCharacter, int modifiers)

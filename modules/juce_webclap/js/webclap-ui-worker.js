@@ -106,7 +106,11 @@ self.onmessage = event => {
                 }
                 break
             case "mouse": module && module._wclap_ui_mouse(m.kind, m.x, m.y, m.buttons, m.modifiers); break
-            case "wheel": module && module._wclap_ui_wheel(m.x, m.y, m.dx, m.dy, m.smooth ? 1 : 0, m.modifiers); break
+            case "wheel":
+                // 0: no component used it (ports whose wclap_ui_wheel returns nothing never report that)
+                if (module && module._wclap_ui_wheel(m.x, m.y, m.dx, m.dy, m.smooth ? 1 : 0, m.modifiers) === 0)
+                    post({type: "unusedWheel", dom: m.dom})
+                break
             case "key": module && module._wclap_ui_key(m.down ? 1 : 0, m.code, m.char, m.modifiers); break
             case "focus": module && module._wclap_ui_focus(m.focused ? 1 : 0); break
             case "clipboard": module && withString(m.text, ptr => module._wclap_ui_clipboard(ptr)); break

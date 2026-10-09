@@ -1,0 +1,142 @@
+Odin 2: the hooks the WebCLAP port needs (ODIN_WEBCLAP, ODIN_HEADLESS).
+
+- ODIN_HEADLESS: a DSP-only build without the editor (module.wasm), no message box in setStateInformation
+- onReadPatch: the page tells the DSP side about patch loads; getValueTreeState for the non-parameter trees
+- readPatch applies the patch's FX order (on desktop only the editor does, so a host restoring a project with
+  the editor closed kept the previous order)
+- Aldrich sized like on Windows: the browser measures fonts by hhea like CoreText (see getAldrichFont)
+
+diff -ruN a/Source/GlobalIncludes.h b/Source/GlobalIncludes.h
+--- a/Source/GlobalIncludes.h
++++ b/Source/GlobalIncludes.h
+@@ -367,6 +367,11 @@
+ 	static const Font getAldrichFont(float p_size) {
+ #ifdef ODIN_MAC
+ 		p_size *= 0.81f; // for some reason the font is just larget on mac...
++#elif ODIN_WEBCLAP
++		// Odin's layout is sized for Windows, which measures fonts by their OS/2 win metrics. JUCE's HarfBuzz
++		// typefaces in the browser use hhea, like CoreText (hence the factor above). For Aldrich hhea ascent +
++		// descent is 1905 units, win 2458: the same pixel height draws the glyphs 2458 / 1905 times as large.
++		p_size *= 1905.0f / 2458.0f;
+ #endif
+ 		static auto typeface_aldrich = Typeface::createSystemTypefaceFor(BinaryData::aldrich_regular_ttf, BinaryData::aldrich_regular_ttfSize);
+ 		return Font(typeface_aldrich).withHeight(p_size);
+diff -ruN a/Source/PluginProcessor.h b/Source/PluginProcessor.h
+--- a/Source/PluginProcessor.h
++++ b/Source/PluginProcessor.h
+@@ -96,6 +96,16 @@
+ 	std::function<void(float)> updatePitchWheelGUI = [](float p_value) {};
+ 	std::function<void(float)> updateModWheelGUI   = [](float p_value) {};
+ 
++#if ODIN_WEBCLAP
++	// WebCLAP: the editor runs against this processor in the page, the sound comes from a second one in the DSP
++	// module. The page tells the DSP side about patch loads (called once per load, with the patch as given), and
++	// both sides reach the tree for the non-parameter state.
++	std::function<void(const ValueTree &)> onReadPatch;
++	AudioProcessorValueTreeState &getValueTreeState() {
++		return m_value_tree;
++	}
++#endif
++
+ 	// this is used to retrigger a held down note if the note after it was released. It stores note and velocity
+ 	std::list<std::pair<int, int>> m_playmode_mono_note_list;
+ 	Atomic<int> m_step_led_active = -1;
+@@ -308,6 +318,9 @@
+ 
+ 	bool m_force_values_onto_gui = false; // used for loading state and then remembering to force values once
+ 	                                      // the editor was created
++#if ODIN_WEBCLAP
++	int m_read_patch_depth = 0; // readPatch loads the init patch first for old patches
++#endif
+ 
+ 	//the panning distributions for each unison count
+ 	std::map<int, std::vector<float>> m_unison_pan_positions = {
+diff -ruN a/Source/PluginProcessorMisc.cpp b/Source/PluginProcessorMisc.cpp
+--- a/Source/PluginProcessorMisc.cpp
++++ b/Source/PluginProcessorMisc.cpp
+@@ -67,16 +67,24 @@
+ #endif
+ 
+ //==============================================================================
++// ODIN_HEADLESS: a DSP-only build (the editor runs elsewhere, e.g. WebCLAP's split UI)
+ bool OdinAudioProcessor::hasEditor() const {
++#if ODIN_HEADLESS
++	return false;
++#else
+ 	return true;
++#endif
+ }
+ 
+ AudioProcessorEditor *OdinAudioProcessor::createEditor() {
+-
++#if ODIN_HEADLESS
++	return nullptr;
++#else
+ 	OdinEditor *editor = new OdinEditor(*this, m_value_tree, m_is_standalone_plugin);
+ 	m_editor_pointer                 = editor;
+ 
+ 	return editor;
++#endif
+ }
+ 
+ //==============================================================================
+@@ -149,11 +157,13 @@
+ 			int patch_migration_version_read =
+ 			    xmlState->getChildByName("misc")->getIntAttribute("patch_migration_version");
+ 			if (patch_migration_version_read > ODIN_PATCH_MIGRATION_VERSION) {
+-				AlertWindow::showMessageBox(
++#if !ODIN_HEADLESS // no windows in a DSP-only build
++				AlertWindow::showMessageBoxAsync(
+ 				    AlertWindow::AlertIconType::WarningIcon,
+ 				    "You are trying to load a project which was saved with a newer Version of Odin2. Please go to "
+ 				    "www.thewavewarden.com and download the newest version to properly use this project!",
+ 				    "Thanks, I will!");
++#endif
+ 				return;
+ 			}
+ 
+@@ -170,9 +180,11 @@
+ 
+ 			createDrawTablesFromValueTree();
+ 
++#if !ODIN_HEADLESS
+ 			if (m_editor_pointer) {
+ 				m_editor_pointer->forceValueTreeOntoComponents(false);
+ 			}
++#endif
+ 		}
+ 	}
+ }
+diff -ruN a/Source/PluginProcessorReadPatch.cpp b/Source/PluginProcessorReadPatch.cpp
+--- a/Source/PluginProcessorReadPatch.cpp
++++ b/Source/PluginProcessorReadPatch.cpp
+@@ -20,6 +20,11 @@
+ // read patch by iterating over all attritubes,
+ // setting them if they are available and setting to default if not
+ void OdinAudioProcessor::readPatch(const ValueTree &newState) {
++#if ODIN_WEBCLAP
++	if (m_read_patch_depth == 0 && onReadPatch)
++		onReadPatch(newState);
++	const ScopedValueSetter<int> depth(m_read_patch_depth, m_read_patch_depth + 1);
++#endif
+ 	//DBG(newStateMigrated.toXmlString());
+ 
+ 	//create deep copy for modification
+@@ -157,6 +162,17 @@
+ 	}
+ 
+ 	setMonoPolyLegato(VALUETREETOPLAYMODE((int)m_value_tree.state.getChildWithName("misc")["legato"]));
++
++#if ODIN_WEBCLAP
++	// The FX order reaches the engine through the editor (setFXButtonsPosition). Without one (a DSP-only build,
++	// a host restoring a project with the editor closed) the patch's order would not apply.
++	const auto fx = m_value_tree.state.getChildWithName("fx");
++	setFXButtonsPosition((int)(float)fx["delay_position"],
++	                     (int)(float)fx["phaser_position"],
++	                     (int)(float)fx["flanger_position"],
++	                     (int)(float)fx["chorus_position"],
++	                     (int)(float)fx["reverb_position"]);
++#endif
+ }
+ 
+ bool OdinAudioProcessor::checkLoadParameter(const String &p_name) {

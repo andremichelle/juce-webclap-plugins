@@ -112,7 +112,24 @@ DEPS += [
      lambda p: p.startswith("Client/")),
 ]
 
-FONT_PACKAGE = "https://registry.npmjs.org/dejavu-fonts-ttf/-/dejavu-fonts-ttf-2.37.3.tgz"
+
+def odin2_filter(path):
+    if path.startswith("assets/"):
+        return not path.endswith((".xcf", ".sh"))
+    return path.startswith("Source/") or path in ("CMakeLists.txt", "LICENSE", "README.md")
+
+
+# Odin 2 and the submodules it builds with, at the pins of odin2 master at the time of writing. JUCE is the shared
+# one (Odin pins a 2022 JUCE), JUCELV2 and clap-juce-extensions are not needed.
+DEPS += [
+    ("odin2", "TheWaveWarden/odin2", "265e9e227581357efb87ed7217381f8a40c5e2bf", odin2_filter),
+    ("odin2/libs/tuning-library", "surge-synthesizer/tuning-library", "8eb7232ac24ac2f97a052063161c0c4f5fd763e3",
+     lambda p: p.startswith("include/") or p == "LICENSE.md"),
+    ("odin2/libs/json", "nlohmann/json", "960b763ecd144f156d05ec61f577b04107290137",
+     lambda p: p.startswith("include/") or p == "LICENSE.MIT"),
+]
+
+FONT_PACKAGE ="https://registry.npmjs.org/dejavu-fonts-ttf/-/dejavu-fonts-ttf-2.37.3.tgz"
 FONT_FILES = ["package/ttf/DejaVuSans.ttf", "package/ttf/DejaVuSans-Bold.ttf", "package/LICENSE"]
 
 
@@ -167,7 +184,7 @@ def fetch_fonts():
 
 
 # patches/<prefix>-*.patch apply to external/<directory>
-PATCH_TARGETS = [("juce-", "JUCE"), ("six-sines-", "six-sines"), ("ripplerx-", "ripplerx")]
+PATCH_TARGETS = [("juce-", "JUCE"), ("six-sines-", "six-sines"), ("ripplerx-", "ripplerx"), ("odin2-", "odin2")]
 
 
 def apply_patches():

@@ -1,0 +1,71 @@
+Odin 2: UI bitmaps without threads.
+
+UIAssetManager scales its 1,248 bitmaps (drawn for 200 %) to the zoom level on 16 threads and caches them as PNG
+files. With ODIN_WEBCLAP (no threads, no persistent files) each bitmap is scaled when it is first drawn.
+
+diff -ruN a/Source/gui/UIAssetManager.cpp b/Source/gui/UIAssetManager.cpp
+--- a/Source/gui/UIAssetManager.cpp
++++ b/Source/gui/UIAssetManager.cpp
+@@ -85,12 +85,37 @@
+ }
+ 
+ juce::Image UIAssetManager::getUIAsset(UIAssets::Indices p_index, unsigned int p_zoom) {
++#if ODIN_WEBCLAP
++	// No threads and no asset folder to cache in: each image is scaled when it is first drawn at this zoom
++	if (int(p_zoom) != m_zoom_size) {
++		m_zoom_size = int(p_zoom);
++		m_image_storage.fill(juce::Image());
++	}
++
++	auto &image = m_image_storage[int(p_index)];
++	if (!image.isValid())
++		image = createScaledImage(int(p_index), p_zoom);
++
++	return image;
++#else
+ 	if (m_is_rescaling)
+ 		return juce::Image();
+ 
+ 	return m_image_storage[int(p_index)];
++#endif
+ }
+ 
++juce::Image UIAssetManager::createScaledImage(int p_index, unsigned int p_zoom) {
++	// the assets are drawn for 200 %
++	auto unscaled_image = juce::ImageFileFormat::loadFrom(UIAssetsData::Data[p_index], size_t(UIAssetsSize::Size[p_index]));
++	if (p_zoom == unsigned(GuiScale::Z200))
++		return unscaled_image;
++
++	const auto new_width  = (unscaled_image.getWidth() / int(GuiScale::Z200)) * p_zoom;
++	const auto new_height = (unscaled_image.getHeight() / int(GuiScale::Z200)) * p_zoom;
++	return unscaled_image.rescaled(new_width, new_height, juce::Graphics::highResamplingQuality);
++}
++
+ bool UIAssetManager::isCurrentlyRescaling() const {
+ 	return m_is_rescaling.load();
+ }
+@@ -113,6 +138,10 @@
+ }
+ 
+ bool UIAssetManager::launchImageCreationThreads(unsigned int p_zoom) {
++#if ODIN_WEBCLAP
++	// Nothing to wait for: getUIAsset scales on demand, the editor takes the new size right away
++	return false;
++#endif
+ 	m_zoom_size           = p_zoom;
+ 	m_scaled_asset_folder = m_asset_folder.getChildFile(juce::String(p_zoom));
+ 
+diff -ruN a/Source/gui/UIAssetManager.h b/Source/gui/UIAssetManager.h
+--- a/Source/gui/UIAssetManager.h
++++ b/Source/gui/UIAssetManager.h
+@@ -71,8 +71,9 @@
+ 
+ 	bool assetFolderExistsAndContainsImages() const;
+ 	void popuplateStorageFromFolder();
++	juce::Image createScaledImage(int p_index, unsigned int p_zoom);
+ 
+-	int m_zoom_size;
++	int m_zoom_size = 0;
+ 	const juce::File m_asset_folder;
+ 	juce::File m_scaled_asset_folder;
+ 

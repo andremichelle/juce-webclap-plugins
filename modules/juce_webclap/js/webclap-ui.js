@@ -112,6 +112,10 @@ function startWebclapUI({canvas, moduleUrl, factory, workerUrl, onStats, onReady
             case "send": toHost(m.bytes); break
             case "cursor": canvas.style.cursor = m.name; break
             case "requestSize": setSize(m.width, m.height); break
+            // A wheel event no component used. The page cannot know that while the event is dispatched (the editor
+            // runs in the worker), so it took it from the browser; hosts that show the window in a scrolling view
+            // can scroll by it. Not part of WebCLAP: other hosts ignore the message.
+            case "unusedWheel": window.parent.postMessage({webclapWheel: m.dom}, "*"); break
             case "copyText": navigator.clipboard && navigator.clipboard.writeText(m.text).catch(() => {}); break
             case "textInput": break // desktop keyboards deliver text through key events
             case "valueText": window.dispatchEvent(new CustomEvent("webclap-value-text", {detail: m})); break
@@ -155,7 +159,8 @@ function startWebclapUI({canvas, moduleUrl, factory, workerUrl, onStats, onReady
         // JUCE units: about 0.2 per wheel notch, positive deltaY scrolls up.
         const scale = e.deltaMode === 1 ? 50 / 256 / 3 : e.deltaMode === 2 ? 1 : 0.5 / 256
         post({type: "wheel", x, y, dx: -e.deltaX * scale, dy: -e.deltaY * scale,
-            smooth: e.deltaMode === 0, modifiers: modifiersOf(e)})
+            smooth: e.deltaMode === 0, modifiers: modifiersOf(e),
+            dom: {deltaX: e.deltaX, deltaY: e.deltaY, deltaMode: e.deltaMode}})
     }, {passive: false})
 
     // Keyboard
