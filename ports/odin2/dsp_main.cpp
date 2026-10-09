@@ -11,7 +11,7 @@
       - a tree property is set on the same child tree, so Odin's own tree listeners react. The ones without a
         listener get the editor's call: drawn tables are rebuilt, the FX order and the play mode are applied.
       - the tuning is replaced
-    Every change marks the host's state dirty.
+    Every change marks the host's state dirty. The editor's zoom is kept here too, for pages that reconnect.
 */
 
 #include <juce_webclap/juce_webclap_clap.h>
@@ -73,6 +73,20 @@ struct OdinPage final : juce::webclap::PageExtension
             child.setProperty (property, value, nullptr);
             applyEditorCall (p, child, childName, property);
         }
+        else if (type == zoom)
+        {
+            int32_t value = 0;
+
+            if (size == sizeof (value))
+                std::memcpy (&value, payload, sizeof (value));
+
+            if (value == 0)
+                zoomRequested = true;
+            else if (value >= int (GuiScale::Z100) && value <= int (GuiScale::Z200))
+                keptZoom = value;
+
+            return; // a view setting, not state
+        }
         else if (type == tuning)
         {
             const auto scl = readString (data, end);
@@ -103,6 +117,9 @@ struct OdinPage final : juce::webclap::PageExtension
         // Drawing sends a property per moved point and frame: the tables are rebuilt here, not per property
         if (pendingDrawTables != 0)
             buildDrawTables (p, std::exchange (pendingDrawTables, 0));
+
+        if (std::exchange (zoomRequested, false) && keptZoom != 0)
+            send (zoom, &keptZoom, sizeof (keptZoom));
 
         const auto step = (int32_t) p.m_step_led_active.get();
 
@@ -193,6 +210,8 @@ private:
     }
 
     int pendingDrawTables = 0;
+    int32_t keptZoom = 0;
+    bool zoomRequested = false;
     int32_t sentStep = -2;
     float sentWheels[2] = { -2.0f, -2.0f };
 };
@@ -218,8 +237,8 @@ const juce::webclap::ClapPluginInfo& juce::webclap::getClapPluginInfo()
         "24-voice polyphonic synthesizer, the editor runs in the page",
         features,
         "/ui/index.html",
-        1200, // the editor at its default 150 % zoom
-        924
+        800, // the editor at the browser build's default 100 % zoom
+        616
     };
 
     return info;

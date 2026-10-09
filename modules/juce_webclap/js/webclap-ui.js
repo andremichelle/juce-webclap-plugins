@@ -155,12 +155,12 @@ function startWebclapUI({canvas, moduleUrl, factory, workerUrl, onStats, onReady
     canvas.addEventListener("contextmenu", e => e.preventDefault())
     canvas.addEventListener("wheel", e => {
         e.preventDefault()
+        const dom = {deltaX: e.deltaX, deltaY: e.deltaY, deltaMode: e.deltaMode}
         const [x, y] = position(e)
         // JUCE units: about 0.2 per wheel notch, positive deltaY scrolls up.
         const scale = e.deltaMode === 1 ? 50 / 256 / 3 : e.deltaMode === 2 ? 1 : 0.5 / 256
         post({type: "wheel", x, y, dx: -e.deltaX * scale, dy: -e.deltaY * scale,
-            smooth: e.deltaMode === 0, modifiers: modifiersOf(e),
-            dom: {deltaX: e.deltaX, deltaY: e.deltaY, deltaMode: e.deltaMode}})
+            smooth: e.deltaMode === 0, modifiers: modifiersOf(e), time: e.timeStamp, dom})
     }, {passive: false})
 
     // Keyboard

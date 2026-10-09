@@ -322,6 +322,9 @@ processor follows through tree listeners.
   (`ProcessorBridge::assumeRemoteHasCurrentValues`), and port frames now run as page edits on the DSP side
   (parameter changes go to the host, not back to the page; non-parameter changes mark the host state dirty).
   Before that, a preset load sent 30 values one way and 760 the other.
+- **Zoom.** The browser build starts at 100 % (800 x 616; Odin's config file does not persist there). The DSP
+  side keeps the editor's zoom for the life of the instance (`zoom` frames), so a page that reconnects, e.g. a host
+  moving the window into a popout, comes back at the same zoom. It is not saved with the project.
 - **Settling counts frames.** After a patch load, a remote state or creating the editor, components write values
   back. The mirror follows the stand-in for 10 frames instead of 300 ms: the editor's first frame takes 450 ms.
 - **No modal loops.** Odin uses `PopupMenu::show` for every dropdown and blocking OK/Cancel boxes in its patch
@@ -334,9 +337,14 @@ processor follows through tree listeners.
   The fonts of the other ports have equal metrics.
 - **Kit fixes it brought up.** A hidden `TopLevelWindow` (an `AlertWindow` member) became the canvas owner: the
   main window is now the first ordinary window shown, not created. Wheel events no component used (they bubble
-  past the window, `patches/juce-8-wasm.patch`) go to the host page, which may scroll; the test host's plugin
-  window scrolls. `binary_data.py` names resources exactly like juceaide (other characters are dropped, not
-  replaced: "Chello (MW,AT)").
+  past the window, `patches/juce-8-wasm.patch`) go to the host page, which may scroll; the rest of such a gesture
+  follows (latched in the worker by the events' times, until the wheel rests 300 ms), so knobs passing under the
+  pointer do not take it. The test host's plugin window scrolls. JUCE places windows for the screen it sees as
+  the display: menus and submenus beyond the canvas are now moved inside (Odin's Zoom submenu was unreachable),
+  dialogs are centred in the canvas. `binary_data.py` names resources exactly like juceaide (other characters are
+  dropped, not replaced: "Chello (MW,AT)").
+- **openDAW.** Its plugin window (`FloatingWindow`) keeps the editor's size and scrolls it when the window is
+  clamped to the screen, with scrollbars that always show; the frame relays the page's unused wheel events.
 - **DSP module.** Upstream's `setStateInformation` shows a message box for newer patches: that pulled JUCE's
   windowing (and its `env` imports) into `module.wasm`; `ODIN_HEADLESS` leaves it out.
 - **Size.** `module.wasm` 13.3 MB, `ui.wasm` 38.8 MB (22.5 MB gzipped), the archive 26.9 MB. 10.8 MB of both

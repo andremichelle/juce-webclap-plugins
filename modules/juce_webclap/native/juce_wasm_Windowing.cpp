@@ -117,7 +117,7 @@ public:
 
         auto& desktop = WasmDesktop::get();
         scale = desktop.pixelRatio;
-        bounds = comp.getBounds();
+        bounds = placedInCanvas (comp.getBounds());
         desktop.peers.push_back (this);
 
         getNativeRealtimeModifiers = [] { return WasmDesktop::get().currentModifiers(); };
@@ -136,6 +136,21 @@ public:
     }
 
     bool isMainPeer() const noexcept { return WasmDesktop::get().mainPeer == this; }
+
+    /** JUCE sees the screen as the display (see setScreenSize), so it places windows that the page cannot show:
+        outside the canvas. Menus, submenus and tooltips beyond its edge are moved inside. Dialogs (any other window
+        before it is shown) are centred: JUCE centred them too, on the screen. */
+    Rectangle<int> placedInCanvas (Rectangle<int> r) const
+    {
+        const auto& desktop = WasmDesktop::get();
+        const Rectangle<int> canvas (desktop.logicalWidth, desktop.logicalHeight);
+
+        if (! visible && (getStyleFlags() & windowIsTemporary) == 0 && ! canvas.contains (r))
+            r.setCentre (canvas.getCentre());
+
+        return r.withPosition (jlimit (0, jmax (0, canvas.getWidth() - r.getWidth()), r.getX()),
+                               jlimit (0, jmax (0, canvas.getHeight() - r.getHeight()), r.getY()));
+    }
 
     /** The first ordinary window that is shown is the plugin's editor. It owns the canvas: its size is the desktop
         size. Shown, not created: a TopLevelWindow (an AlertWindow a plugin keeps as a member) is on the desktop,
@@ -181,6 +196,8 @@ public:
 
         if (isMainPeer())
             corrected.setPosition (0, 0);
+        else
+            corrected = placedInCanvas (corrected);
 
         if (corrected == bounds && fullScreen == isNowFullScreen)
             return;

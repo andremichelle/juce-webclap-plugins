@@ -11,6 +11,8 @@ let context = null
 let imageData = null
 let imageDataKey = ""
 let pixelRatio = 1
+const scrollLatchMs = 300
+let scrollLatchUntil = 0 // page time (Event.timeStamp) until which wheel events scroll the host
 
 const post = (message, transfer) => self.postMessage(message, transfer || [])
 
@@ -107,9 +109,18 @@ self.onmessage = event => {
                 break
             case "mouse": module && module._wclap_ui_mouse(m.kind, m.x, m.y, m.buttons, m.modifiers); break
             case "wheel":
-                // 0: no component used it (ports whose wclap_ui_wheel returns nothing never report that)
-                if (module && module._wclap_ui_wheel(m.x, m.y, m.dx, m.dy, m.smooth ? 1 : 0, m.modifiers) === 0)
+                // A gesture that started scrolling the host keeps scrolling it, also when a control moves under the
+                // pointer (browsers latch scrolling the same way), until the wheel rests for scrollLatchMs. Decided
+                // here, in event order and by the events' own times, however late the worker gets to them.
+                if (m.time < scrollLatchUntil) {
+                    scrollLatchUntil = m.time + scrollLatchMs
                     post({type: "unusedWheel", dom: m.dom})
+                }
+                // 0: no component used it (ports whose wclap_ui_wheel returns nothing never report that)
+                else if (module && module._wclap_ui_wheel(m.x, m.y, m.dx, m.dy, m.smooth ? 1 : 0, m.modifiers) === 0) {
+                    scrollLatchUntil = m.time + scrollLatchMs
+                    post({type: "unusedWheel", dom: m.dom})
+                }
                 break
             case "key": module && module._wclap_ui_key(m.down ? 1 : 0, m.code, m.char, m.modifiers); break
             case "focus": module && module._wclap_ui_focus(m.focused ? 1 : 0); break

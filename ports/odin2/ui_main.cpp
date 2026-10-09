@@ -11,6 +11,7 @@
         each frame sends the properties that differ
       - the tuning (part of the state, not of the tree): sent when its text changes
       - the arpeggiator's step LED and the wheels as MIDI moved them: from the DSP side's frames
+      - the zoom: kept on the DSP side, so a reconnecting page (a popout reloads it) gets it back
       - the editor reads the patch only when it is constructed, so it is created once the DSP side's snapshot is
         in (or after a second without an answer)
 
@@ -30,6 +31,8 @@
 #include <juce_webclap/juce_webclap_bridge.h>
 
 #include "PluginProcessor.h"
+#include "PluginEditor.h"
+#include "ConfigFileManager.h"
 #include "odin2_frames.h"
 #include "WebFonts.h"
 
@@ -76,6 +79,7 @@ struct App
     int settleFrames = 0;
     bool applyingRemote = false; // inside a frame from the DSP side
     bool patchSent = false;      // a readPatch frame went out since the last frame
+    int32_t sentZoom = 0;        // the zoom the DSP side keeps
     int lastWidth = 0, lastHeight = 0;
     double pixelRatio = 1.0, startTime = -1.0;
 };
@@ -149,6 +153,14 @@ void syncNonParameterState()
         }
     }
 
+    const auto zoomNow = (int32_t) ConfigFileManager::getInstance().getOptionGuiScale();
+
+    if (zoomNow != app->sentZoom)
+    {
+        app->sentZoom = zoomNow;
+        app->bridge->sendPluginFrame (zoom, &zoomNow, sizeof (zoomNow));
+    }
+
     const auto& scl = p.m_tuning.scale.rawText;
     const auto& kbm = p.m_tuning.keyboardMapping.rawText;
 
@@ -177,6 +189,26 @@ void onPluginFrame (juce::uint8 type, const juce::uint8* payload, size_t size)
         int32_t step;
         std::memcpy (&step, payload, sizeof (step));
         p.m_step_led_active.set (step);
+    }
+    else if (type == zoom && size == sizeof (int32_t))
+    {
+        int32_t value;
+        std::memcpy (&value, payload, sizeof (value));
+
+        if (value < int (GuiScale::Z100) || value > int (GuiScale::Z200))
+            return;
+
+        // The zoom this instance had before the page reconnected. The editor reads it when it is created, one
+        // that exists already takes it as from its zoom menu.
+        app->sentZoom = value;
+        ConfigFileManager::getInstance().setOptionGuiScale (value);
+
+        if (app->window != nullptr)
+            if (auto* editor = dynamic_cast<OdinEditor*> (app->window->editor.get()))
+            {
+                editor->setGuiSize ((GuiScale) value, false);
+                settle();
+            }
     }
     else if (type == wheels && size == 2 * sizeof (float))
     {
@@ -234,7 +266,12 @@ EMSCRIPTEN_KEEPALIVE int wclap_ui_init (double pixelRatio)
 
     // The mirror and the tuning start as the stand-in's init patch, which the DSP side has as well
     settle();
+    app->sentZoom = (int32_t) ConfigFileManager::getInstance().getOptionGuiScale();
     syncNonParameterState();
+
+    // Ask for the zoom the DSP side kept (a reconnecting page)
+    const int32_t askForZoom = 0;
+    app->bridge->sendPluginFrame (zoom, &askForZoom, sizeof (askForZoom));
 
     // The editor follows in wclap_ui_frame, once the DSP side's patch is in
     app->bridge->sendHello();

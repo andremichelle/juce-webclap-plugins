@@ -4,8 +4,25 @@ Odin 2: the hooks the WebCLAP port needs (ODIN_WEBCLAP, ODIN_HEADLESS).
 - onReadPatch: the page tells the DSP side about patch loads; getValueTreeState for the non-parameter trees
 - readPatch applies the patch's FX order (on desktop only the editor does, so a host restoring a project with
   the editor closed kept the previous order)
+- the browser starts at 100 % zoom (the config file does not persist there)
 - Aldrich sized like on Windows: the browser measures fonts by hhea like CoreText (see getAldrichFont)
 
+diff -ruN a/Source/ConfigFileManager.h b/Source/ConfigFileManager.h
+--- a/Source/ConfigFileManager.h
++++ b/Source/ConfigFileManager.h
+@@ -69,7 +69,12 @@
+ private:
+ 	ConfigFileManager();
+ 
++#if ODIN_WEBCLAP
++	// a browser window is smaller than a desktop: start at 100 % (the zoom menu offers the rest)
++	int m_gui_scale = int(GuiScale::Z100);
++#else
+ 	int m_gui_scale = int(GuiScale::Z150);
++#endif
+ 	void createDirIfNeeded();
+ 	void loadDataFromFile();
+ 	//the actual config values with default values
 diff -ruN a/Source/GlobalIncludes.h b/Source/GlobalIncludes.h
 --- a/Source/GlobalIncludes.h
 +++ b/Source/GlobalIncludes.h

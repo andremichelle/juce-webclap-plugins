@@ -13,6 +13,9 @@
         arpStep    DSP -> UI   i32 the arpeggiator step that is playing (its LED), up to 30 times a second
         wheels     DSP -> UI   f32 pitch bend, f32 mod wheel, as MIDI moved them (the engine writes those
                                parameters without notifying anyone)
+        zoom       both        i32 the editor's zoom (GuiScale). UI -> DSP when it changes, 0 at start to ask
+                               for the one the DSP side kept: a page that reconnects (a host moving the window
+                               into a popout reloads it) keeps the zoom. Not part of the state.
 */
 
 #pragma once
@@ -27,7 +30,8 @@ enum Frame : juce::webclap::protocol::uint8
     tree,
     tuning,
     arpStep,
-    wheels
+    wheels,
+    zoom
 };
 
 /** The child trees of the APVTS state that hold non-parameter patch data. */
