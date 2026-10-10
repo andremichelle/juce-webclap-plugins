@@ -1,0 +1,38 @@
+Surge XT without threads (WebCLAP modules have none): a queued patch loads in the silent block of process()
+that would start the loading thread, and the loader no longer assumes a thread to detach.
+
+--- a/src/common/SurgeSynthesizer.cpp
++++ b/src/common/SurgeSynthesizer.cpp
+@@ -4595,7 +4595,8 @@
+ 
+     // Now we want to null out the patchLoadThread since everything is done
+     auto myThread = std::move(synth->patchLoadThread);
+-    myThread->detach();
++    if (myThread) // none in WebCLAP, see process()
++        myThread->detach();
+ 
+     return;
+ }
+@@ -4965,6 +4966,14 @@
+ 
+         if (masterfade < 0.0001f)
+         {
++#if SURGE_WEBCLAP
++            // No threads in WebCLAP: the patch loads here, in this block, which is silent. The loader takes
++            // patchLoadSpawnMutex itself.
++            beginPatchChangeNoteRetrigger();
++            halt_engine = true;
++            stopSound();
++            loadPatchInBackgroundThread(this);
++#else
+             std::lock_guard<std::mutex> mg(patchLoadSpawnMutex);
+             // spawn patch-loading thread
+             // halt first, so that stopSound() knows this is a patch change and can spare
+@@ -4983,6 +4992,7 @@
+                 patchLoadThread->join();
+ 
+             patchLoadThread = std::make_unique<std::thread>(loadPatchInBackgroundThread, this);
++#endif
+ 
+             mech::clear_block<BLOCK_SIZE>(output[0]);
+             mech::clear_block<BLOCK_SIZE>(output[1]);

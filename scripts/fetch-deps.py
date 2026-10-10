@@ -129,6 +129,54 @@ DEPS += [
      lambda p: p.startswith("include/") or p == "LICENSE.MIT"),
 ]
 
+def surge_filter(path):
+    if path.startswith("resources/data/"):
+        return "_3rdparty/" not in path
+    if path.startswith("libs/sqlite-3.23.3/"):
+        return path.endswith(("sqlite3.c", "sqlite3.h", "sqlite3ext.h"))
+    return (path.startswith(("src/common/", "src/surge-xt/", "src/platform/", "src/lua/", "libs/airwindows/",
+                             "libs/binn/", "libs/eurorack/", "resources/surge-shared/", "resources/fonts/",
+                             "resources/classic-skin-svgs/"))
+            or path in ("src/cmake/CmakeRC.cmake", "LICENSE", "AUTHORS.md", "README.md"))
+
+
+# Surge XT and the submodules it builds with, at the pins of surge main at the time of writing. JUCE (Surge pins the
+# same commit) and simde are the shared ones. LuaJIT, MTS-ESP, clap-juce-extensions are not needed (no Lua yet, the
+# kit wraps the processor).
+SURGE = "surge/libs/"
+DEPS += [
+    ("surge", "surge-synthesizer/surge", "4f425b04b7c08cffa1f45ec3851607d269d47444", surge_filter),
+    (SURGE + "eurorack/eurorack", "surge-synthesizer/eurorack", "888298b0e3ec5daabf96c5ab912ffc42825a2b4c",
+     lambda p: p.endswith((".cc", ".h", ".hpp")) or p == "LICENSE"),
+    (SURGE + "PEGTL", "taocpp/PEGTL", "64af78c6a7959cd5753ad165ec9f65591aa96f2d",
+     lambda p: p.startswith("include/") or p == "LICENSE"),
+    (SURGE + "fmt", "fmtlib/fmt", "e424e3f2e607da02742f73db84873b8084fc714c",
+     lambda p: p.startswith(("include/", "src/")) or p == "LICENSE"),
+    (SURGE + "tuning-library", "surge-synthesizer/tuning-library", "5a18353a0444caa068b648383cae37d156b97e1c",
+     lambda p: p.startswith("include/") or p in ("LICENSE.md", "README.md")),
+    (SURGE + "pffft", "surge-synthesizer/pffft", "d027f2a290ca0047d95513c2a20570d13557e381",
+     lambda p: "/" not in p and p.endswith((".c", ".h", ".hpp", ".cpp", ".txt", ".md"))),
+    (SURGE + "r8brain-free-src", "avaneev/r8brain-free-src", "b3f0753d90b3325b8ea8a08fd699e8e6db26e5b5",
+     lambda p: p.endswith((".cpp", ".h", ".c", ".inc")) and not p.startswith(("bench/", "other/", "DLL/"))
+     or p == "LICENSE"),
+    (SURGE + "zstd", "facebook/zstd", "92505deb29bc17fe014ed918e67f15a84d70b230",
+     lambda p: p.startswith(("lib/common/", "lib/compress/", "lib/decompress/"))
+     or p in ("lib/zstd.h", "lib/zstd_errors.h", "lib/zdict.h", "LICENSE")),
+    (SURGE + "sst/sst-basic-blocks", "surge-synthesizer/sst-basic-blocks", "7209f14567b37a0db6986c7cb1680089e97c8516",
+     include_only),
+    (SURGE + "sst/sst-cpputils", "surge-synthesizer/sst-cpputils", "52c4b749c0e155077ee1df79fee5d237bef7a1a8",
+     include_only),
+    (SURGE + "sst/sst-effects", "surge-synthesizer/sst-effects", "5f2bd1a8fdea77f9f2c8acad3ed71e66fd7fa41d",
+     include_only),
+    (SURGE + "sst/sst-filters", "surge-synthesizer/sst-filters", "6bcf08bb8ecd177b161281e8147f30b10f0b5db7",
+     lambda p: p.startswith(("include/", "include-extras/"))),
+    (SURGE + "sst/sst-waveshapers", "surge-synthesizer/sst-waveshapers", "dd12f31a5a9016c9895e52d1a00eee0e1eebe6ce",
+     include_only),
+    (SURGE + "sst/sst-plugininfra", "surge-synthesizer/sst-plugininfra", "ebdaf5e936361994a30b0d51d2ff6cb750232d4b",
+     lambda p: p.startswith(("include/", "src/", "libs/tinyxml/include/", "libs/tinyxml/src/", "libs/strnatcmp/",
+                             "libs/filesystem/"))),
+]
+
 FONT_PACKAGE ="https://registry.npmjs.org/dejavu-fonts-ttf/-/dejavu-fonts-ttf-2.37.3.tgz"
 FONT_FILES = ["package/ttf/DejaVuSans.ttf", "package/ttf/DejaVuSans-Bold.ttf", "package/LICENSE"]
 
@@ -184,7 +232,8 @@ def fetch_fonts():
 
 
 # patches/<prefix>-*.patch apply to external/<directory>
-PATCH_TARGETS = [("juce-", "JUCE"), ("six-sines-", "six-sines"), ("ripplerx-", "ripplerx"), ("odin2-", "odin2")]
+PATCH_TARGETS = [("juce-", "JUCE"), ("six-sines-", "six-sines"), ("ripplerx-", "ripplerx"), ("odin2-", "odin2"),
+                 ("surge-", "surge")]
 
 
 def apply_patches():

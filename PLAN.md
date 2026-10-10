@@ -8,8 +8,8 @@ host, its unmodified editor runs as `ui.wasm` in the webview page, parameters, g
 Sines (phase 4) runs the same way, with streams for its meters and spectrum analyzer, and RipplerX with the kit's
 first generic extras (keyboard notes, port frames on the AudioProcessor path), and Odin 2, whose editor edits
 non-parameter trees directly. Not yet tried in openDAW (phase 2). See "Prototype findings", "DSP module findings",
-"Six Sines findings", "RipplerX findings", "Odin 2 findings" and README.md. Written 2026-10-07, Six Sines and
-RipplerX 2026-10-08, Odin 2 2026-10-09.
+"Six Sines findings", "RipplerX findings", "Odin 2 findings", "Surge XT findings" and README.md. Written 2026-10-07,
+Six Sines and RipplerX 2026-10-08, Odin 2 2026-10-09, Surge XT 2026-10-10.
 
 ## Goal
 
@@ -354,6 +354,35 @@ processor follows through tree listeners.
   side makes on its own (none known besides MIDI learn) are not sent to the page. Importing presets, soundbanks and
   tunings goes through the in-memory `/user`. The soundbank column of the preset browser stays empty. Bitmaps are
   drawn at the zoom's resolution, so they are soft at a device pixel ratio of 2.
+
+## Surge XT findings (2026-10-10)
+
+Surge XT (Surge Synth Team, GPL-3.0-or-later) is the largest port. Its editor (about 75k lines) calls into
+`SurgeSynthesizer` and writes into `SurgePatch` directly (about 1,850 `synth->`/`storage->` uses: scenes, FX, MSEGs,
+formula modulators, step sequencers, tuning, modulation routing), so the UI side will need a full engine as its
+stand-in, synced by frames. Stages: (1) the engine as `module.wasm`, (2) the editor with a stand-in engine, parameters
+and whole patches crossing over, (3) finer frames for MSEG, formula, step sequencer, routing and tuning edits, then
+Lua 5.1 for formulas and wavetable scripts.
+
+Stage 1, the engine:
+
+- `ports/surge-xt/CMakeLists.txt` builds surge-common from upstream's own source list (`src/common/CMakeLists.txt`)
+  and the libs it links (airwindows, eurorack, sst-*, zstd, sqlite, pffft, r8brain, fmt, binn), with `LINUX` paths
+  and the shared sst shim. JUCE (same pin as Surge's) and simde are the shared ones; LuaJIT, MTS-ESP and
+  clap-juce-extensions are not fetched (`HAS_LUA=0`, `SURGE_SKIP_ODDSOUND_MTS`).
+- Patches: `surge-no-threads` loads a queued patch in the silent block of `process()` instead of starting a thread;
+  `surge-webclap` drops the editor (`SURGE_HEADLESS`) and OSC (a stand-in `OpenSoundControl`). `PatchDB` and
+  `WtGenService` start threads only on use (patch browser, Lua wavetable scripts), which the engine alone never does.
+- `module.wasm` is 6.8 MB and imports WASI only: sqlite's chmod/fchown/ftruncate/utimensat joined the kit's
+  read-only filesystem stubs. It links the GUI JUCE library because the processor's headers use
+  `PluginHostType` and `Colour`; the linker keeps what is used.
+- The page (`ports/surge-xt/ui/index.html`) is a factory patch browser speaking the kit's protocol directly: a patch
+  is a state frame with the `.fxp` minus its 60-byte header, which `setStateInformation` loads like a host state.
+- All 641 factory patches load and play without NaNs. Silent: the three Lua formula tutorials, the vocoder patches
+  and the Audio In templates (the test host feeds no input). CPU in Node (the test host's worklet code), 3-voice
+  chords: median 1.2 % of real time, at most 7.3 %. A patch load runs inside one `process()` call: median 2 ms,
+  at most 44 ms (a formula tutorial), longer than a 128-sample block, so a host's audio glitches once per load.
+- Bundle: 31 MB unpacked, 8.1 MB as `.wclap.tar.gz`, mostly the factory patches (wavetables are inside them).
 
 ## Open questions
 

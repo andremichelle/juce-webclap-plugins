@@ -62,4 +62,9 @@ int __syscall_mkdirat (int, intptr_t, int)                      { return -EROFS;
 int __syscall_unlinkat (int, intptr_t, int)                     { return -EROFS; }
 int __syscall_rmdir (intptr_t)                                  { return -EROFS; }
 int __syscall_renameat (int, intptr_t, int, intptr_t)           { return -EROFS; }
+int __syscall_chmod (intptr_t, int)                             { return -EROFS; }
+int __syscall_fchmod (int, int)                                 { return -EROFS; }
+int __syscall_fchown32 (int, int, int)                          { return -EROFS; }
+int __syscall_ftruncate64 (int, int64_t)                        { return -EROFS; }
+int __syscall_utimensat (int, intptr_t, intptr_t, int)          { return -EROFS; }
 }
