@@ -32,7 +32,7 @@
     const statusBar = document.getElementById("statusBar")
     const file = document.getElementById("file")
     const megabytes = bytes => (bytes / 1048576).toFixed(1)
-    let fileTimer = 0
+    let fileTimer = 0, failed = false
     const downloads = {module: {loaded: 0, total: 0}, prefetch: {loaded: 0, total: 0}}
 
     startWebclapUI({
@@ -46,7 +46,8 @@
                        "^patches_factory/Templates/Init Saw\\.fxp$", "^wavetables/Basic/Sine HQ\\.wav$"]
         },
         onProgress: m => {
-            if ((m.phase === "module" || m.phase === "prefetch") && status.isConnected) {
+            // A download still running after an error must not replace its message
+            if ((m.phase === "module" || m.phase === "prefetch") && status.isConnected && !failed) {
                 downloads[m.phase] = {loaded: m.loaded, total: m.total}
                 const loaded = downloads.module.loaded + downloads.prefetch.loaded
                 const total = downloads.module.total + downloads.prefetch.total
@@ -71,6 +72,7 @@
         },
         onStats: stats => window.parent.postMessage({webclapDebug: "stats", stats}, "*"),
         onError: message => {
+            failed = true
             if (status.isConnected) statusText.textContent = "Error: " + message
             window.parent.postMessage({webclapDebug: "error", message}, "*")
         }
