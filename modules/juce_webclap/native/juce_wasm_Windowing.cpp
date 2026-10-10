@@ -63,6 +63,7 @@ public:
 
     // Mouse state
     Point<float> lastMousePosition { -1000.0f, -1000.0f };
+    Point<float> warpOffset;   // pages cannot move the pointer: a warp shifts the positions that follow instead
     WasmComponentPeer* capturedPeer = nullptr;
     int buttonFlags = 0, keyboardFlags = 0;
     std::set<int> keysDown;
@@ -588,7 +589,12 @@ bool detail::MouseInputSourceList::addSource()
 bool detail::MouseInputSourceList::canUseTouch() const              { return false; }
 
 Point<float> MouseInputSource::getCurrentRawMousePosition()         { return WasmDesktop::get().lastMousePosition; }
-void MouseInputSource::setRawMousePosition (Point<float>)           {} // browsers do not let pages move the pointer
+void MouseInputSource::setRawMousePosition (Point<float> newPosition)
+{
+    auto& desktop = WasmDesktop::get();
+    desktop.warpOffset += newPosition - desktop.lastMousePosition;
+    desktop.lastMousePosition = newPosition;
+}
 
 //==============================================================================
 class MouseCursor::PlatformSpecificHandle
@@ -887,7 +893,9 @@ namespace webclap
     void mouse (MouseEventType type, float x, float y, int buttons, int modifiers)
     {
         auto& desktop = WasmDesktop::get();
-        const auto position = Point<float> (x, y);
+        if (buttons == 0 && type != MouseEventType::up)
+            desktop.warpOffset = {};
+        const auto position = Point<float> (x, y) + desktop.warpOffset;
         updateKeyboardFlags (modifiers);
 
         if (type != MouseEventType::leave)
