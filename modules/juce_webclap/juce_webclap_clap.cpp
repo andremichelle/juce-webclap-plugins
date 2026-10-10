@@ -351,13 +351,22 @@ private:
         {
             const auto v = (float) jlimit (0.0, 1.0, value);
 
-            if (approximatelyEqual (parameter->getValue(), v))
+            // Compared with what the host was told (hostValue): a value outside 0..1 that comes back clamped is
+            // the host repeating it, not a change
+            if (approximatelyEqual (hostValue (*parameter), v))
                 return;
 
             const ScopedValueSetter<Origin> scope (origin, from);
             parameter->setValue (v);
             parameter->sendValueChangedMessageToListeners (v);
         }
+    }
+
+    /** A parameter's value as the host sees it. JUCE asks for 0..1, but some plugins step outside (Surge XT's
+        bipolar macros go down to -1); CLAP hosts get the range they were promised. */
+    static float hostValue (const AudioProcessorParameter& parameter)
+    {
+        return jlimit (0.0f, 1.0f, parameter.getValue());
     }
 
     AudioProcessorParameter* findParameter (clap_id id) const
@@ -383,7 +392,7 @@ private:
         const auto id = idsByIndex[(size_t) index];
 
         if (origin != Origin::host)
-            outEvents.push_back ({ CLAP_EVENT_PARAM_VALUE, id, (double) value });
+            outEvents.push_back ({ CLAP_EVENT_PARAM_VALUE, id, (double) jlimit (0.0f, 1.0f, value) });
 
         if (origin != Origin::page)
         {
@@ -742,7 +751,7 @@ private:
                 auto* parameter = self (p).findParameter (id);
 
                 if (parameter != nullptr)
-                    *value = parameter->getValue();
+                    *value = hostValue (*parameter);
 
                 return parameter != nullptr;
             },
