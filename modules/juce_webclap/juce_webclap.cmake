@@ -120,7 +120,7 @@ set(JUCE_WEBCLAP_UI_LINK_OPTIONS
     -sSTACK_SIZE=2MB
     -sFILESYSTEM=1
     -sEXPORTED_FUNCTIONS=_malloc,_free
-    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAP32,UTF8ToString,stringToNewUTF8)
+    -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAP32,UTF8ToString,stringToNewUTF8,FS)
 
 # ... and every DSP module (module.wasm): a standalone wasm module (no Emscripten JS), exporting clap_entry, malloc
 # and the function table, importing only WASI. Link juce_webclap_standalone.cpp into it.

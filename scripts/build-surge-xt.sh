@@ -21,7 +21,24 @@ emcmake cmake -S "$ROOT/ports/surge-xt" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release "
 cmake --build "$BUILD" -j "$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
 
 # The bundle's page (ui/), the test host at web/
+rm -f "$BUNDLE/ui/ui.data"
 cp "$ROOT/modules/juce_webclap/js/"*.js "$ROOT/ports/surge-xt/ui/"* "$BUNDLE/ui/"
+
+# The factory data, loaded file by file when the editor reads it: ui/factory/ and its manifest (path, size)
+rm -rf "$BUNDLE/ui/factory"
+cp -R "$SURGE/resources/data" "$BUNDLE/ui/factory"
+python3 - "$BUNDLE/ui/factory" <<'PY'
+import json, os, sys
+root = sys.argv[1]
+files = []
+for folder, dirs, names in os.walk(root):
+    dirs.sort()
+    for name in sorted(names):
+        path = os.path.join(folder, name)
+        files.append([os.path.relpath(path, root).replace(os.sep, "/"), os.path.getsize(path)])
+json.dump({"files": files}, open(os.path.join(root, "manifest.json"), "w"), separators=(",", ":"))
+print(f"factory: {len(files)} files, {sum(size for _, size in files) / 1e6:.1f} MB")
+PY
 cp "$ROOT/modules/juce_webclap/test-host/"* "$WEB/"
 echo '["surge-xt.wclap"]' > "$WEB/bundles.json"
 

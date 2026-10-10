@@ -5,6 +5,10 @@ Surge XT: the hooks the WebCLAP port needs (SURGE_WEBCLAP, SURGE_HEADLESS).
 - SURGE_WEBCLAP: no OSC (no sockets in a browser). A stand-in OpenSoundControl keeps the settings and fails to
   start; the processor sends no OSC messages. No audio device settings either (the look and feel's check for them
   needs juce_audio_devices).
+- SURGE_WEBCLAP: no undo history. The host's history covers the plugin (its state), and a second one beside it
+  undid twice on one key press. The undo manager keeps no records, the undo and redo buttons are gone (their
+  "History" label, part of the background image, is covered with an empty stretch of the same row), and Cmd+Z/Y
+  are not bound.
 - SURGE_WEBCLAP: patch loads without audio raise patchChanged, as loads in the audio thread do. The editor's engine
   in WebCLAP never plays, and this is how its patch loads reach the DSP side.
 - Builds without MTS-ESP (SURGE_SKIP_ODDSOUND_MTS) and for 32-bit size_t: the editor no longer sets
@@ -194,7 +198,54 @@ Surge XT: the hooks the WebCLAP port needs (SURGE_WEBCLAP, SURGE_HEADLESS).
  }
  
  void SurgeGUIEditor::forceLFODisplayRebuild() { lfoDisplay->repaint(); }
-@@ -3193,7 +3197,7 @@
+@@ -1971,8 +1975,38 @@
+ 
+             break;
+         }
++#if SURGE_WEBCLAP
++        // No undo history in WebCLAP: the host's covers the plugin (its state). No undo and redo buttons, and their
++        // "History" label, which is part of the background image, is covered with an empty stretch of the same row.
+         case Surge::Skin::Connector::NonParameterConnection::ACTION_UNDO:
+         {
++            struct Cover : juce::Component
++            {
++                std::function<SurgeImage *()> background;
++                int sourceOffset{0};
++
++                void paint(juce::Graphics &g) override
++                {
++                    if (auto *bg = background())
++                        bg->drawAt(g, (float)-(getX() - sourceOffset), (float)-getY(), 1.0);
++                }
++            };
++
++            // The label follows the buttons (undo, redo: two of these wide), up to the Save button
++            auto cover = std::make_unique<Cover>();
++            cover->background = [this]() { return bitmapStore->getImage(IDB_MAIN_BG); };
++            cover->sourceOffset = 100; // the row is empty 100 pixels to the left, between Patch and these
++            cover->setBounds(skinCtrl->x - 1, skinCtrl->y - 1, skinCtrl->w * 2 + 44, skinCtrl->h + 2);
++            cover->setInterceptsMouseClicks(false, false);
++            frame->addAndMakeVisible(*cover);
++            historyCover = std::move(cover);
++            break;
++        }
++        case Surge::Skin::Connector::NonParameterConnection::ACTION_REDO:
++            break;
++#else
++        case Surge::Skin::Connector::NonParameterConnection::ACTION_UNDO:
++        {
+             actionUndo = layoutComponentForSkin(skinCtrl, tag_action_undo);
+             setAccessibilityInformationByTitleAndAction(actionUndo->asJuceComponent(), "Undo",
+                                                         "Undo");
+@@ -1987,6 +2021,7 @@
+ 
+             break;
+         }
++#endif
+         case Surge::Skin::Connector::NonParameterConnection::SAVE_PATCH:
+         {
+             auto q = layoutComponentForSkin(skinCtrl, tag_store);
+@@ -3193,7 +3228,7 @@
       * 8 GB/s for this. That is the difference between the hash doubling the cost of a backup and
       * it being a tenth of it.
       */
@@ -203,6 +254,29 @@ Surge XT: the hooks the WebCLAP port needs (SURGE_WEBCLAP, SURGE_HEADLESS).
      const auto *bytes = (const unsigned char *)data;
      unsigned int i = 0;
  
+@@ -6196,8 +6231,10 @@
+ 
+     keyMapManager->clearBindings();
+ 
++#if !SURGE_WEBCLAP // the host's undo and redo, not the plugin's
+     keyMapManager->addBinding(KeyboardActions::UNDO, {keymap_t::Modifiers::COMMAND, (int)'Z'});
+     keyMapManager->addBinding(KeyboardActions::REDO, {keymap_t::Modifiers::COMMAND, (int)'Y'});
++#endif
+ 
+     keyMapManager->addBinding(KeyboardActions::PREV_PATCH,
+                               {keymap_t::Modifiers::COMMAND, juce::KeyPress::leftKey});
+--- a/src/surge-xt/gui/SurgeGUIEditor.h
++++ b/src/surge-xt/gui/SurgeGUIEditor.h
+@@ -789,6 +789,9 @@
+     Surge::GUI::IComponentTagValue *statusMPE = nullptr, *statusTune = nullptr,
+                                    *statusZoom = nullptr, *actionUndo = nullptr,
+                                    *actionRedo = nullptr;
++#if SURGE_WEBCLAP
++    std::unique_ptr<juce::Component> historyCover; // over the "History" label of the undo buttons, see layout
++#endif
+     std::unique_ptr<Surge::Overlays::AboutScreen> aboutScreen;
+ 
+     std::unique_ptr<juce::Drawable> midiLearnOverlay;
 --- a/src/surge-xt/gui/SurgeJUCELookAndFeel.cpp
 +++ b/src/surge-xt/gui/SurgeJUCELookAndFeel.cpp
 @@ -495,6 +495,9 @@
@@ -223,3 +297,35 @@ Surge XT: the hooks the WebCLAP port needs (SURGE_WEBCLAP, SURGE_HEADLESS).
  }
  
  void SurgeJUCELookAndFeel::drawToggleButton(Graphics &g, ToggleButton &button,
+--- a/src/surge-xt/gui/UndoManager.cpp
++++ b/src/surge-xt/gui/UndoManager.cpp
+@@ -427,6 +427,9 @@
+ 
+     void pushUndo(const UndoAction &r)
+     {
++#if SURGE_WEBCLAP
++        return; // no undo history: the host's covers the plugin (its state)
++#endif
+         if (!doPush)
+             return;
+ 
+@@ -485,6 +488,9 @@
+ 
+     void pushRedo(const UndoAction &r)
+     {
++#if SURGE_WEBCLAP
++        return;
++#endif
+         if (!doPush)
+             return;
+         auto g = CleanupGuard(this);
+@@ -921,6 +927,9 @@
+ 
+     void pushPatch(UndoManager::Target to = UndoManager::UNDO)
+     {
++#if SURGE_WEBCLAP
++        return; // spares streaming the whole patch for a record that is never kept
++#endif
+         auto r = UndoPatch();
+         r.data = nullptr;
+         r.dataSz = 0;

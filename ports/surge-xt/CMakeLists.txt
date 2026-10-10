@@ -258,10 +258,9 @@ target_compile_options(ui PRIVATE -Wno-deprecated-declarations)
 target_link_libraries(ui PRIVATE surge-common juce_wasm_keyboard juce_wasm_audio_formats)
 
 # The factory data (patches, wavetables, skins, presets, tunings, impulse responses) is Surge's data folder, at
-# /factory in Emscripten's filesystem (see the sst shim). The user's folder is /user, in memory.
-set(UI_LINK_OPTIONS ${JUCE_WEBCLAP_UI_LINK_OPTIONS}
-    "SHELL:--preload-file ${SURGE}/resources/data@/factory"
-    -sINITIAL_MEMORY=256MB)
+# /factory in Emscripten's filesystem (see the sst shim): files of the bundle (ui/factory/) that load when first read,
+# see scripts/build-surge-xt.sh and the kit's webclap-ui-worker.js. The user's folder is /user, in memory.
+set(UI_LINK_OPTIONS ${JUCE_WEBCLAP_UI_LINK_OPTIONS} -sINITIAL_MEMORY=128MB)
 target_link_options(ui PRIVATE ${UI_LINK_OPTIONS})
 set_target_properties(ui PROPERTIES
     SUFFIX ".js"

@@ -6,21 +6,64 @@
     <style>
         html, body { margin: 0; padding: 0; background: #0d0d0d; overflow: hidden; }
         canvas { display: block; outline: none; touch-action: none; }
-        #status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-                  color: #9a9a9a; font: 13px/1.4 system-ui, sans-serif; pointer-events: none; }
+        #status { position: absolute; inset: 0; display: flex; flex-direction: column; gap: 10px; align-items: center;
+                  justify-content: center; color: #9a9a9a; font: 13px/1.4 system-ui, sans-serif; pointer-events: none; }
+        #status .bar { width: 240px; height: 4px; background: #2a2a2a; border-radius: 2px; overflow: hidden; }
+        #status .bar div { height: 100%; width: 0; background: #ff9000; transition: width 80ms linear; }
+        #file { position: fixed; left: 8px; bottom: 8px; padding: 4px 10px; border-radius: 3px; background: #000c;
+                color: #d0d0d0; font: 12px/1.4 system-ui, sans-serif; pointer-events: none; display: none; }
+        #file::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 8px;
+                        border-radius: 50%; background: #ff9000; animation: pulse 0.8s ease-in-out infinite alternate; }
+        @keyframes pulse { from { opacity: 0.3 } to { opacity: 1 } }
     </style>
 </head>
 <body>
 <canvas id="editor" width="16" height="16"></canvas>
-<div id="status">Loading Surge XT…</div>
+<div id="status"><span id="statusText">Loading Surge XT…</span><div class="bar"><div id="statusBar"></div></div></div>
+<div id="file"></div>
 <script src="webclap-ui.js"></script>
 <script>
-    // The plugin's webview page. Everything except the debug messages below is the generic kit.
+    // The plugin's webview page. The factory data (patches, wavetables, skins...) is a folder of bundle files that
+    // load when the editor first reads them, except what it reads while it starts (the dark skin, the skin list, the
+    // FX presets, the init patch), which downloads with the editor. This page shows that download, then each file
+    // that takes a moment to load.
     const status = document.getElementById("status")
+    const statusText = document.getElementById("statusText")
+    const statusBar = document.getElementById("statusBar")
+    const file = document.getElementById("file")
+    const megabytes = bytes => (bytes / 1048576).toFixed(1)
+    let fileTimer = 0
+    const downloads = {module: {loaded: 0, total: 0}, prefetch: {loaded: 0, total: 0}}
+
     startWebclapUI({
         canvas: document.getElementById("editor"),
         moduleUrl: "ui.js",
         factory: "createWebclapUI",
+        files: {
+            manifest: "factory/manifest.json",
+            mount: "/factory",
+            prefetch: ["^skins/dark-mode\\.surge-skin/", "^skins/.*/skin\\.xml$", "^fx_presets/",
+                       "^patches_factory/Templates/Init Saw\\.fxp$", "^wavetables/Basic/Sine HQ\\.wav$"]
+        },
+        onProgress: m => {
+            if ((m.phase === "module" || m.phase === "prefetch") && status.isConnected) {
+                downloads[m.phase] = {loaded: m.loaded, total: m.total}
+                const loaded = downloads.module.loaded + downloads.prefetch.loaded
+                const total = downloads.module.total + downloads.prefetch.total
+                statusText.textContent = total > 0 && loaded < total
+                    ? `Loading Surge XT… ${megabytes(loaded)} of ${megabytes(total)} MB`
+                    : total > 0 ? "Starting Surge XT…" : `Loading Surge XT… ${megabytes(loaded)} MB`
+                statusBar.style.width = total > 0 ? `${Math.min(100, 100 * loaded / total)}%` : "100%"
+            } else if (m.phase === "file") {
+                // Most files load faster than this: only the ones that take a moment show
+                clearTimeout(fileTimer)
+                const text = `Loading ${m.name} (${m.size < 1048576 ? Math.ceil(m.size / 1024) + " KB" : megabytes(m.size) + " MB"})`
+                fileTimer = setTimeout(() => { file.textContent = text; file.style.display = "block" }, 150)
+            } else if (m.phase === "fileDone") {
+                clearTimeout(fileTimer)
+                file.style.display = "none"
+            }
+        },
         onReady: info => {
             status.remove()
             // For the test host's stats line. Sent as JSON, which hosts that only relay binary frames ignore.
@@ -28,7 +71,7 @@
         },
         onStats: stats => window.parent.postMessage({webclapDebug: "stats", stats}, "*"),
         onError: message => {
-            if (status.isConnected) status.textContent = "Error: " + message
+            if (status.isConnected) statusText.textContent = "Error: " + message
             window.parent.postMessage({webclapDebug: "error", message}, "*")
         }
     })

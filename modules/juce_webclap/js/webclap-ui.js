@@ -4,6 +4,11 @@
 // frames between the worker and the host: out with window.parent.postMessage, in with "message" events.
 //
 //     startWebclapUI({canvas, moduleUrl: "ui.js", factory: "createWebclapUI"})
+//
+// Options: files: {manifest, mount, prefetch} mounts a folder of bundle files that load when first read, except the
+// ones matching a prefetch pattern (regular expressions), which load with ui.wasm (see the worker);
+// onProgress(m) gets the worker's progress messages: {phase: "module" or "prefetch", loaded, total} while ui.wasm and
+// the prefetched files download, {phase: "file", name, size} while another file loads, then {phase: "fileDone"}.
 
 "use strict"
 
@@ -46,16 +51,17 @@ function translateKey(e) {
     return null // modifiers alone, dead keys, IME composition
 }
 
-// Keys the browser should keep, so a plugin window cannot trap the user.
+// Keys the browser should keep, so a plugin window cannot trap the user. Undo and redo are the host's: a plugin's
+// own history next to the host's would undo twice (hosts that forward keys from the window, like openDAW, see them).
 function isBrowserShortcut(e) {
     if (e.key === "F5" || e.key === "F12") return true
-    return (e.metaKey || e.ctrlKey) && /^[rwtlqn]$/i.test(e.key)
+    return (e.metaKey || e.ctrlKey) && /^[rwtlqnzy]$/i.test(e.key)
 }
 
 // Resolved while this script loads; document.currentScript is gone by the time startWebclapUI runs.
 const WEBCLAP_UI_BASE = new URL(".", document.currentScript && document.currentScript.src || location.href)
 
-function startWebclapUI({canvas, moduleUrl, factory, workerUrl, onStats, onReady, onError}) {
+function startWebclapUI({canvas, moduleUrl, factory, workerUrl, files, onStats, onReady, onError, onProgress}) {
     const base = WEBCLAP_UI_BASE
     const worker = new Worker(workerUrl || new URL("webclap-ui-worker.js", base))
     const offscreen = canvas.transferControlToOffscreen()
@@ -118,6 +124,7 @@ function startWebclapUI({canvas, moduleUrl, factory, workerUrl, onStats, onReady
             case "unusedWheel": window.parent.postMessage({webclapWheel: m.dom}, "*"); break
             case "copyText": navigator.clipboard && navigator.clipboard.writeText(m.text).catch(() => {}); break
             case "textInput": break // desktop keyboards deliver text through key events
+            case "progress": onProgress && onProgress(m); break
             case "valueText": window.dispatchEvent(new CustomEvent("webclap-value-text", {detail: m})); break
             case "error":
                 console.error("[webclap-ui]", m.message)
@@ -189,7 +196,9 @@ function startWebclapUI({canvas, moduleUrl, factory, workerUrl, onStats, onReady
     watchPixelRatio()
 
     post({type: "init", canvas: offscreen, moduleUrl: new URL(moduleUrl, location.href).href, factory, pixelRatio,
-        screenWidth: screen.availWidth, screenHeight: screen.availHeight}, [offscreen])
+        screenWidth: screen.availWidth, screenHeight: screen.availHeight,
+        files: files ? {manifest: new URL(files.manifest, location.href).href, mount: files.mount,
+            prefetch: files.prefetch || []} : null}, [offscreen])
 
     return {
         worker,

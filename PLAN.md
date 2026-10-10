@@ -389,8 +389,8 @@ Stage 2, the editor:
 - `ui.wasm` is Surge's editor (upstream's source list, minus OSC and the CLAP preset discovery) with
   `SurgeSynthProcessor` as its stand-in, a full engine that never plays. It compiled with three fixes (no MTS-ESP:
   `uiThreadChecksTunings`; 32-bit `size_t`: an FNV basis; no `juce_audio_devices`: the device-settings check in the
-  look and feel). The factory data is Surge's data folder at `/factory` (`--preload-file`, 60 MB in `ui.data`);
-  `ui.wasm` is 20.6 MB.
+  look and feel). `ui.wasm` is 20.6 MB. The factory data (60 MB, 1,986 files) is Surge's data folder at `/factory`,
+  loaded on demand (below).
 - Sync: parameters and macros through the kit's bridge (Surge's adapters call `setValueNotifyingHost`), gestures
   included. Patch loads in the editor's engine raise `patchChanged` (the patch adds that for loads without audio;
   with audio, `loadPatchInBackgroundThread` already does), and the glue sends the whole patch as state. Modulation
@@ -399,6 +399,25 @@ Stage 2, the editor:
   Surge writes its instance zoom into the patch but never reads it back. Not yet: MSEG, step sequencer, formula,
   tuning and other non-parameter edits (stage 3), the VU meter and other displays the DSP side would feed.
 - The skin defaults to Surge's factory dark skin (user settings live in memory at `/user`).
+- No undo history of Surge's own: the host's history covers the plugin through its state (openDAW records parameter
+  and state changes and reloads the state on undo), and both reacted to one Cmd+Z in the plugin window. The undo
+  manager keeps no records, the undo and redo buttons are gone, their "History" label in the background image is
+  covered. The kit's page no longer passes Cmd/Ctrl+Z and Y to any plugin: undo and redo are the host's (text
+  fields inside an editor lose Cmd+Z for that).
+- Factory data on demand (the kit's `files` option, `webclap-ui-worker.js`): the bundle has `ui/factory/` and a
+  manifest of paths and sizes. The worker mounts every file in Emscripten's filesystem with its size, so listings and
+  stats need no download, and loads a file's contents when it is first read, with a synchronous request (workers
+  may; Surge reads files synchronously). What the editor reads while it starts (about 450 files, 4.4 MB: the dark
+  skin, every skin's `skin.xml`, the FX presets Surge parses for its menus, the init patch and a sine wavetable) is
+  listed as `prefetch` patterns and downloads in parallel with `ui.wasm`, eight at a time, with retries for dropped
+  connections. The page shows one progress bar for both, then a small "Loading <file>" note for files that take
+  longer than 150 ms. Before, `ui.data` copied all 60 MB into the wasm heap each time the editor opened.
+  In openDAW the bundle is still imported whole (its archive is 43.7 MB) and served by its service worker; the
+  synchronous requests go through that service worker too, which is not tested yet.
+- Found while doing this: the editor's engine loads Surge's init patch while it is constructed, which raised
+  `patchChanged`; with a slower init, the first frame sent that patch to the DSP side before the DSP side's snapshot
+  was in, replacing the host's state. Now the construction load is not counted, and nothing goes out before the
+  snapshot.
 - Kit fixes found here: popup menus now keep to the canvas (the display's area beyond it is a safe-area inset,
   which only menus read), so a menu taller than a zoomed-out editor scrolls or wraps instead of being cut off. A
   submenu with column breaks of its own (Surge's patch categories) that does not fit beside its parent drops them

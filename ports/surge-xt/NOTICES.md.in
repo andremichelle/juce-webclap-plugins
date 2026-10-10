@@ -3,6 +3,10 @@
 Surge XT by the Surge Synth Team, a hybrid synthesizer, ported to WebCLAP. This is not an official Surge XT release.
 Lua (formula modulation, wavetable scripts), MTS-ESP and OSC are not part of this build.
 
+**This is a modified version of Surge XT** (changes made 2026-10-10, in `patches/surge-*.patch` of the port's
+source): it has no undo history of its own (the host's history covers the plugin), loads patches without a thread,
+and leaves out the parts named above.
+
 - Surge XT: https://github.com/surge-synthesizer/surge (commit 4f425b0, version 1.4.0)
 - This port, and the complete source of this bundle: @SOURCE_URL@
   Build it with `scripts/build-surge-xt.sh`, which fetches every dependency below at the commit named here and

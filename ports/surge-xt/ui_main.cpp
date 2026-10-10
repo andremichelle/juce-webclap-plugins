@@ -173,7 +173,11 @@ void runEngineChores()
     // Patch browser loads are queued for the audio thread; with none, they run here
     synth.processAudioThreadOpsWhenAudioEngineUnavailable();
 
-    // A new patch in the editor: the DSP side gets all of it (ProcessorBridge sends the state)
+    // A new patch in the editor: the DSP side gets all of it (ProcessorBridge sends the state). Not before the DSP
+    // side's own patch is in: until then the editor's engine has a patch of its own, which must not replace it.
+    if (app->bridge->getSnapshotsReceived() == 0)
+        return;
+
     if (synth.patchChanged.exchange (false))
         app->processor->updateHostDisplay (juce::AudioProcessorListener::ChangeDetails()
                                                .withNonParameterStateChanged (true));
@@ -204,6 +208,7 @@ EMSCRIPTEN_KEEPALIVE int wclap_ui_init (double pixelRatio)
     app->processor = std::make_unique<SurgeSynthProcessor>();
     app->processor->setRateAndBufferSizeDetails (48000.0, 512);
     app->processor->prepareToPlay (48000.0, 512);
+    app->processor->surge->patchChanged = false; // the init patch it loaded, not an edit
 
     auto* storage = &app->processor->surge->storage;
 

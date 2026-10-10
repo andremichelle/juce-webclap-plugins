@@ -2,6 +2,10 @@
 //
 // The page drives it: one "frame" message per animation frame, and the next one only after this worker
 // answered "frameDone", so a slow frame never queues up more work. Input arrives as small messages.
+//
+// Progress goes to the page as "progress" messages: the download of ui.wasm (phase "module", bytes), the files of a
+// lazy folder fetched ahead (phase "prefetch", bytes), and each other file while it loads (phase "file", with the
+// file's name and size; "fileDone" after).
 
 "use strict"
 
@@ -63,6 +67,129 @@ function receive(bytes) {
     module._free(ptr)
 }
 
+// A folder of bundle files (a plugin's factory data) in Emscripten's filesystem whose contents load when first read.
+// The manifest lists every file with its size, so listings and sizes work without loading anything. A read loads
+// the whole file with a synchronous request, which workers may make: the C++ side reads files synchronously.
+async function fetchManifest(files) {
+    const response = await fetch(files.manifest)
+    if (!response.ok) throw new Error(`${files.manifest}: ${response.status}`)
+    return response.json()
+}
+
+const lazyFolderUrl = (files, path) =>
+    new URL(path.split("/").map(encodeURIComponent).join("/"), new URL(".", files.manifest)).href
+
+// A dropped connection is retried (a busy server may refuse some of many parallel requests), an HTTP error is not
+async function fetchBytes(url, attempts = 3) {
+    for (let attempt = 1; ; attempt++) {
+        let response
+        try {
+            response = await fetch(url)
+        } catch (error) {
+            if (attempt >= attempts) throw error
+            await new Promise(resolve => setTimeout(resolve, 100 * attempt))
+            continue
+        }
+        if (!response.ok) throw new Error(`${url}: ${response.status}`)
+        return new Uint8Array(await response.arrayBuffer())
+    }
+}
+
+// The files the plugin reads while it starts (files.prefetch: regular expressions on their paths), fetched in
+// parallel with ui.wasm rather than one by one when read. Resolves to a Map of path to contents.
+async function prefetchFiles(files, manifest) {
+    const patterns = (files.prefetch || []).map(source => new RegExp(source))
+    const wanted = manifest.files.filter(([path]) => patterns.some(pattern => pattern.test(path)))
+    const total = wanted.reduce((sum, [, size]) => sum + size, 0)
+    const contents = new Map()
+    let loaded = 0, next = 0, lastPost = 0
+    const worker = async () => {
+        while (next < wanted.length) {
+            const [path, size] = wanted[next++]
+            contents.set(path, await fetchBytes(lazyFolderUrl(files, path)))
+            loaded += size
+            const now = performance.now()
+            if (now - lastPost > 50 || loaded === total) {
+                lastPost = now
+                post({type: "progress", phase: "prefetch", loaded, total})
+            }
+        }
+    }
+    if (wanted.length > 0) post({type: "progress", phase: "prefetch", loaded: 0, total})
+    await Promise.all(Array.from({length: 8}, worker))
+    return contents
+}
+
+function mountLazyFolder(FS, files, manifest, prefetched) {
+    const load = (node, path, size) => {
+        if (node.contents !== null) return
+        const ready = prefetched.get(path)
+        if (ready) {
+            node.contents = ready
+            prefetched.delete(path)
+            return
+        }
+        post({type: "progress", phase: "file", name: path.split("/").pop(), size})
+        try {
+            const request = new XMLHttpRequest()
+            request.open("GET", lazyFolderUrl(files, path), false)
+            request.responseType = "arraybuffer"
+            request.send(null)
+            if (request.status !== 200 && request.status !== 0) throw new Error(`${path}: ${request.status}`)
+            node.contents = new Uint8Array(request.response)
+        } catch (error) {
+            post({type: "error", message: `Could not load ${path}: ${error.message || error}`})
+            throw new FS.ErrnoError(29) // EIO
+        } finally {
+            post({type: "progress", phase: "fileDone"})
+        }
+    }
+    for (const [path, size] of manifest.files) {
+        const slash = path.lastIndexOf("/")
+        const folder = files.mount + (slash >= 0 ? "/" + path.slice(0, slash) : "")
+        FS.mkdirTree(folder)
+        const node = FS.createFile(folder, path.slice(slash + 1), {}, true, false)
+        node.contents = null
+        Object.defineProperty(node, "usedBytes", {get() { return this.contents === null ? size : this.contents.length }})
+        const ops = {}
+        for (const [key, fn] of Object.entries(node.stream_ops))
+            ops[key] = (stream, ...rest) => { load(stream.node, path, size); return fn(stream, ...rest) }
+        node.stream_ops = ops
+    }
+}
+
+// ui.wasm with download progress (its size from Content-Length, when the server sends it)
+function instantiateWithProgress(wasmUrl) {
+    return (imports, receiveInstance) => {
+        (async () => {
+            const response = await fetch(wasmUrl)
+            if (!response.ok) throw new Error(`${wasmUrl}: ${response.status}`)
+            const total = Number(response.headers.get("Content-Length")) || 0
+            const reader = response.body.getReader()
+            const chunks = []
+            let loaded = 0, lastPost = 0
+            for (;;) {
+                const {done, value} = await reader.read()
+                if (done) break
+                chunks.push(value)
+                loaded += value.byteLength
+                const now = performance.now()
+                if (now - lastPost > 50) {
+                    lastPost = now
+                    post({type: "progress", phase: "module", loaded, total})
+                }
+            }
+            post({type: "progress", phase: "module", loaded, total: Math.max(total, loaded)})
+            const bytes = new Uint8Array(loaded)
+            let at = 0
+            for (const chunk of chunks) { bytes.set(chunk, at); at += chunk.byteLength }
+            const {instance, module} = await WebAssembly.instantiate(bytes, imports)
+            receiveInstance(instance, module)
+        })().catch(error => post({type: "error", message: String(error && error.stack || error)}))
+        return {}
+    }
+}
+
 async function init(message) {
     importScripts(message.moduleUrl)
     canvas = message.canvas
@@ -76,11 +203,19 @@ async function init(message) {
         textInput: (active, x, y) => post({type: "textInput", active, x, y})
     }
     const factory = self[message.factory]
-    module = await factory({
-        webclapHost: host,
-        print: text => console.log(text),
-        printErr: text => console.warn(text)
-    })
+    const manifest = message.files ? await fetchManifest(message.files) : null
+    const prefetched = new Map()
+    const prefetching = manifest ? prefetchFiles(message.files, manifest) : Promise.resolve(new Map())
+    ;[module] = await Promise.all([
+        factory({
+            webclapHost: host,
+            print: text => console.log(text),
+            printErr: text => console.warn(text),
+            instantiateWasm: instantiateWithProgress(message.moduleUrl.replace(/\.js$/, ".wasm")),
+            preRun: manifest ? [m => mountLazyFolder(m.FS, message.files, manifest, prefetched)] : []
+        }),
+        prefetching.then(contents => contents.forEach((bytes, path) => prefetched.set(path, bytes)))
+    ])
     const t0 = performance.now()
     module._wclap_ui_set_screen(message.screenWidth, message.screenHeight)
     if (!module._wclap_ui_init(pixelRatio)) throw new Error("wclap_ui_init failed")
