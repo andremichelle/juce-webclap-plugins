@@ -240,13 +240,11 @@ class ClapHost extends AudioWorkletProcessor {
         const host = this.alloc(48)
         const extensions = new Map()
         const ext = (name, size) => { const ptr = this.alloc(size); extensions.set(name, ptr); return ptr }
-        const v = this.view
+        const strings = ["juce_webclap test host", "juce_webclap", "", "0.1"].map(text => this.allocString(text))
+        const v = this.view // after the allocations, see createProcess
         v.setUint32(host, 1, true); v.setUint32(host + 4, 2, true); v.setUint32(host + 8, 0, true)
         v.setUint32(host + 12, 0, true)
-        v.setUint32(host + 16, this.allocString("juce_webclap test host"), true)
-        v.setUint32(host + 20, this.allocString("juce_webclap"), true)
-        v.setUint32(host + 24, this.allocString(""), true)
-        v.setUint32(host + 28, this.allocString("0.1"), true)
+        strings.forEach((ptr, i) => v.setUint32(host + 16 + i * 4, ptr, true))
         this.install(host + 32, ["i32", "i32"], ["i32"], (_h, idPtr) => extensions.get(this.cstr(idPtr)) || 0)
         this.install(host + 36, ["i32"], [], () => this.log("request_restart (ignored)"))
         this.install(host + 40, ["i32"], [], () => {})
@@ -287,13 +285,15 @@ class ClapHost extends AudioWorkletProcessor {
         this.host = host
     }
 
+    // A DataView is taken after the allocations it writes into: malloc can grow the memory, which detaches the
+    // buffer of every view taken before.
     createProcess() {
-        const v = this.view
         this.processPtr = this.alloc(40)
         this.outputs = [this.alloc(QUANTUM * 4), this.alloc(QUANTUM * 4)]
         this.inputs = [this.alloc(QUANTUM * 4), this.alloc(QUANTUM * 4)]
         const outData = this.alloc(8), inData = this.alloc(8)
         const audioOut = this.alloc(24), audioIn = this.alloc(24)
+        let v = this.view
         for (const [buffer, data, channels] of [[audioOut, outData, this.outputs], [audioIn, inData, this.inputs]]) {
             v.setUint32(data, channels[0], true)
             v.setUint32(data + 4, channels[1], true)
@@ -312,6 +312,7 @@ class ClapHost extends AudioWorkletProcessor {
         this.outEvents = this.alloc(8)
         this.install(this.outEvents + 4, ["i32", "i32"], ["i32"], (_l, ptr) => (this.outputEvent(ptr), 1))
 
+        v = this.view
         v.setBigUint64(this.processPtr, 0n, true)
         v.setUint32(this.processPtr + 12, 0, true)          // no transport
         v.setUint32(this.processPtr + 16, audioIn, true)

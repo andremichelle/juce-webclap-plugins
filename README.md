@@ -17,9 +17,9 @@ its plugin window.
 - [Odin 2](https://github.com/TheWaveWarden/odin2): an `AudioProcessor` whose editor edits the patch's
   non-parameter trees directly; those cross over as tree properties, patch loads as one frame
   (`ports/odin2/odin2_frames.h`).
-- [Surge XT](https://github.com/surge-synthesizer/surge): engine only so far. `module.wasm` is
-  `SurgeSynthProcessor` without Lua, OSC and MTS-ESP; its page is a factory patch browser that sends patches as
-  state. Surge's editor is next.
+- [Surge XT](https://github.com/surge-synthesizer/surge): an `AudioProcessor` whose editor reaches into the whole
+  engine, so `ui.wasm` runs a second, silent engine as its stand-in. Parameters cross over as usual, patch loads as
+  state, modulation routings as frames (`ports/surge-xt/surge_frames.h`). Without Lua, OSC and MTS-ESP.
 
 ## Build and run
 
@@ -40,7 +40,7 @@ python3 scripts/serve.py build/ripplerx/web 8125
 scripts/build-odin2.sh                # and Odin 2
 python3 scripts/serve.py build/odin2/web 8126
 
-scripts/build-surge-xt.sh             # and Surge XT (engine only)
+scripts/build-surge-xt.sh             # and Surge XT
 python3 scripts/serve.py build/surge-xt/web 8127
 open http://127.0.0.1:8125/
 ```

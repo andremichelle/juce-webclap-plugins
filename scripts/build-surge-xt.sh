@@ -20,27 +20,8 @@ python3 "$ROOT/scripts/fetch-deps.py"
 emcmake cmake -S "$ROOT/ports/surge-xt" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release "$@"
 cmake --build "$BUILD" -j "$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
 
-# The bundle's page (ui/) with the factory patches it browses, the test host at web/
-rm -rf "$BUNDLE/ui"
-mkdir -p "$BUNDLE/ui"
-cp "$ROOT/ports/surge-xt/ui/"* "$BUNDLE/ui/"
-cp -R "$SURGE/resources/data/patches_factory" "$BUNDLE/ui/patches"
-python3 - "$BUNDLE/ui/patches" <<'PY'
-import json, os, sys
-root = sys.argv[1]
-patches = []
-for category in sorted(os.listdir(root), key=str.lower):
-    folder = os.path.join(root, category)
-    if not os.path.isdir(folder):
-        continue
-    for dirpath, _, files in sorted(os.walk(folder)):
-        for f in sorted(files, key=str.lower):
-            if f.endswith(".fxp"):
-                path = os.path.relpath(os.path.join(dirpath, f), root)
-                patches.append({"category": category, "name": f[:-4], "path": path})
-json.dump(patches, open(os.path.join(root, "index.json"), "w"), indent=0)
-print(f"{len(patches)} factory patches")
-PY
+# The bundle's page (ui/), the test host at web/
+cp "$ROOT/modules/juce_webclap/js/"*.js "$ROOT/ports/surge-xt/ui/"* "$BUNDLE/ui/"
 cp "$ROOT/modules/juce_webclap/test-host/"* "$WEB/"
 echo '["surge-xt.wclap"]' > "$WEB/bundles.json"
 
@@ -55,7 +36,9 @@ bundle_license "$BUNDLE" "$ROOT/ports/surge-xt/NOTICES.md.in" \
     "$SURGE/libs/r8brain-free-src/LICENSE" r8brain.txt \
     "$SURGE/libs/zstd/LICENSE" zstd.txt \
     "$SURGE/libs/binn/LICENSE" binn.txt \
-    "${JUCE_CORE_LICENSES[@]}" "${JUCE_FLAC_LICENSES[@]}"
+    "$SURGE/resources/fonts/OFL.txt" OFL-1.1-Lato.txt \
+    "$ROOT/external/fonts/DejaVu-LICENSE" DejaVu.txt \
+    "${JUCE_CORE_LICENSES[@]}" "${JUCE_GRAPHICS_LICENSES[@]}" "${JUCE_FLAC_LICENSES[@]}"
 
 # The archive hosts import (openDAW: Import WebCLAP...)
 python3 "$ROOT/scripts/pack-wclap.py" "$BUNDLE" "$BUILD/surge-xt.wclap.tar.gz"

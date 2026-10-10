@@ -3,8 +3,40 @@ Surge XT: the hooks the WebCLAP port needs (SURGE_WEBCLAP, SURGE_HEADLESS).
 - SURGE_HEADLESS: SurgeSynthProcessor without its editor (module.wasm). juce_audio_formats is included
   directly, the editor headers brought it in.
 - SURGE_WEBCLAP: no OSC (no sockets in a browser). A stand-in OpenSoundControl keeps the settings and fails to
-  start; the processor sends no OSC messages.
+  start; the processor sends no OSC messages. No audio device settings either (the look and feel's check for them
+  needs juce_audio_devices).
+- SURGE_WEBCLAP: patch loads without audio raise patchChanged, as loads in the audio thread do. The editor's engine
+  in WebCLAP never plays, and this is how its patch loads reach the DSP side.
+- Builds without MTS-ESP (SURGE_SKIP_ODDSOUND_MTS) and for 32-bit size_t: the editor no longer sets
+  uiThreadChecksTunings, which only exists with MTS-ESP, and the patch backup hash's 64-bit FNV basis is truncated
+  explicitly. Both are upstream build fixes, not WebCLAP specific.
 
+--- a/src/common/SurgeSynthesizer.cpp
++++ b/src/common/SurgeSynthesizer.cpp
+@@ -4605,6 +4605,11 @@
+ {
+     if (!audio_processing_active || dangerMode)
+     {
++#if SURGE_WEBCLAP
++        // Without audio (WebCLAP's editor runs an engine of its own that never plays), patches load here, so
++        // this is where the editor's patch loads say so, as loadPatchInBackgroundThread does with audio
++        const bool loads = rawLoadEnqueued || patchid_queue >= 0 || has_patchid_file;
++#endif
+         processEnqueuedPatchIfNeeded();
+ 
+         auto lg = std::lock_guard<std::mutex>(patchLoadSpawnMutex);
+@@ -4662,6 +4667,11 @@
+         {
+             retriggerHeldNotesAfterPatchLoad();
+         }
++
++#if SURGE_WEBCLAP
++        if (loads)
++            patchChanged = true;
++#endif
+     }
+ }
+ 
 --- a/src/surge-xt/SurgeSynthProcessor.cpp
 +++ b/src/surge-xt/SurgeSynthProcessor.cpp
 @@ -20,7 +20,11 @@
@@ -140,3 +172,54 @@ Surge XT: the hooks the WebCLAP port needs (SURGE_WEBCLAP, SURGE_HEADLESS).
  
  // Makes sure that decimal *points* are used, not commas
  inline std::string float_to_clocalestr_wprec(float value, int precision)
+--- a/src/surge-xt/gui/SurgeGUIEditor.cpp
++++ b/src/surge-xt/gui/SurgeGUIEditor.cpp
+@@ -506,7 +506,9 @@
+ 
+     juceEditor->processor.undoManager->resetEditor(this);
+ 
++#ifndef SURGE_SKIP_ODDSOUND_MTS
+     synth->storage.uiThreadChecksTunings = true;
++#endif
+ }
+ 
+ SurgeGUIEditor::~SurgeGUIEditor()
+@@ -521,7 +523,9 @@
+     populateDawExtraState(synth); // If I must die, leave my state for future generations
+     synth->storage.getPatch().dawExtraState.isPopulated = isPop;
+     synth->storage.removeErrorListener(this);
++#ifndef SURGE_SKIP_ODDSOUND_MTS
+     synth->storage.uiThreadChecksTunings = false;
++#endif
+ }
+ 
+ void SurgeGUIEditor::forceLFODisplayRebuild() { lfoDisplay->repaint(); }
+@@ -3193,7 +3197,7 @@
+      * 8 GB/s for this. That is the difference between the hash doubling the cost of a backup and
+      * it being a tenth of it.
+      */
+-    size_t hash{0xcbf29ce484222325ULL};
++    size_t hash{(size_t)0xcbf29ce484222325ULL}; // the 64-bit basis, truncated where size_t is 32 bits
+     const auto *bytes = (const unsigned char *)data;
+     unsigned int i = 0;
+ 
+--- a/src/surge-xt/gui/SurgeJUCELookAndFeel.cpp
++++ b/src/surge-xt/gui/SurgeJUCELookAndFeel.cpp
+@@ -495,6 +495,9 @@
+ // while the feedback loop mute button is a sibling of it.
+ static bool isInAudioDeviceSettings(const Component &c)
+ {
++#if SURGE_WEBCLAP
++    return false; // no standalone wrapper, so no device settings (and no juce_audio_devices)
++#else
+     if (auto *parent = c.getParentComponent())
+     {
+         for (auto *sibling : parent->getChildren())
+@@ -507,6 +510,7 @@
+     }
+ 
+     return c.findParentComponentOfClass<AudioDeviceSelectorComponent>() != nullptr;
++#endif
+ }
+ 
+ void SurgeJUCELookAndFeel::drawToggleButton(Graphics &g, ToggleButton &button,

@@ -384,6 +384,27 @@ Stage 1, the engine:
   at most 44 ms (a formula tutorial), longer than a 128-sample block, so a host's audio glitches once per load.
 - Bundle: 31 MB unpacked, 8.1 MB as `.wclap.tar.gz`, mostly the factory patches (wavetables are inside them).
 
+Stage 2, the editor:
+
+- `ui.wasm` is Surge's editor (upstream's source list, minus OSC and the CLAP preset discovery) with
+  `SurgeSynthProcessor` as its stand-in, a full engine that never plays. It compiled with three fixes (no MTS-ESP:
+  `uiThreadChecksTunings`; 32-bit `size_t`: an FNV basis; no `juce_audio_devices`: the device-settings check in the
+  look and feel). The factory data is Surge's data folder at `/factory` (`--preload-file`, 60 MB in `ui.data`);
+  `ui.wasm` is 20.6 MB.
+- Sync: parameters and macros through the kit's bridge (Surge's adapters call `setValueNotifyingHost`), gestures
+  included. Patch loads in the editor's engine raise `patchChanged` (the patch adds that for loads without audio;
+  with audio, `loadPatchInBackgroundThread` already does), and the glue sends the whole patch as state. Modulation
+  routings go through a `ModulationAPIListener` as `modSet`/`modMute`/`modClear` frames, applied with the same API
+  on the DSP side. The zoom crosses as a view setting the DSP side keeps for pages that reconnect, as in Odin 2:
+  Surge writes its instance zoom into the patch but never reads it back. Not yet: MSEG, step sequencer, formula,
+  tuning and other non-parameter edits (stage 3), the VU meter and other displays the DSP side would feed.
+- The skin defaults to Surge's factory dark skin (user settings live in memory at `/user`).
+- Kit fixes found here: popup menus now keep to the canvas (the display's area beyond it is a safe-area inset,
+  which only menus read), so a menu taller than a zoomed-out editor scrolls or wraps instead of being cut off. A
+  submenu with column breaks of its own (Surge's patch categories) that does not fit beside its parent drops them
+  and scrolls (`juce-8-wasm.patch`, PopupMenu): placed over its parent, it left the other categories unreachable.
+  The test host's worklet wrote through DataViews taken before `malloc` calls that grew the memory.
+
 ## Open questions
 
 - Worker with `OffscreenCanvas` from the start, or main thread first and the worker later?

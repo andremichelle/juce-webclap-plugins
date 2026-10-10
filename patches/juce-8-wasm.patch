@@ -175,3 +175,26 @@ diff --color -ruN a/modules/juce_gui_basics/lookandfeel/juce_LookAndFeel.cpp b/m
      return false; // not available currently
     #else
      return useNativeAlertWindows;
+diff -ruN a/modules/juce_gui_basics/menus/juce_PopupMenu.cpp b/modules/juce_gui_basics/menus/juce_PopupMenu.cpp
+--- a/modules/juce_gui_basics/menus/juce_PopupMenu.cpp
++++ b/modules/juce_gui_basics/menus/juce_PopupMenu.cpp
+@@ -984,6 +984,19 @@
+                 if (numColumns > 1)
+                     layoutMenuItems (biggestSpace - 4, maxMenuHeight, widthToUse, heightToUse);
+ 
++               #if JUCE_WASM
++                // A menu with column breaks of its own keeps them, and may still not fit beside its parent: then it
++                // would be placed over the parent, which the mouse could no longer reach. The canvas is often that
++                // small (a plugin window), so drop the breaks and let the menu fit, scrolling if it must.
++                if (widthToUse > biggestSpace)
++                {
++                    for (auto* item : items)
++                        item->item.shouldBreakAfter = false;
++
++                    layoutMenuItems (biggestSpace - 4, maxMenuHeight, widthToUse, heightToUse);
++                }
++               #endif
++
+                 tendTowardsRight = (parentArea.getRight() - target.getRight()) >= (target.getX() - parentArea.getX());
+             }
+ 

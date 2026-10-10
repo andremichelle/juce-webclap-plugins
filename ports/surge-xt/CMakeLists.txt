@@ -1,8 +1,9 @@
-# Surge XT as a WebCLAP bundle: module.wasm (DSP, CLAP entry). Configure with emcmake, see
-# scripts/build-surge-xt.sh. The bundle lands in web/surge-xt.wclap, next to the test host page.
+# Surge XT as a WebCLAP bundle: module.wasm (DSP, CLAP entry) and ui/ui.wasm (the editor, with an engine of its own
+# as the stand-in). Configure with emcmake, see scripts/build-surge-xt.sh. The bundle lands in web/surge-xt.wclap,
+# next to the test host page.
 #
-# The engine (surge-common) and SurgeSynthProcessor build without JUCE's GUI modules, without Lua (no LuaJIT for
-# wasm), MTS-ESP and OSC (patches/surge-*.patch).
+# The engine (surge-common) and SurgeSynthProcessor build without Lua (no LuaJIT for wasm), MTS-ESP and OSC
+# (patches/surge-*.patch).
 
 cmake_minimum_required(VERSION 3.20)
 project(surge-xt-webclap LANGUAGES C CXX)
@@ -197,7 +198,7 @@ add_executable(module
     "${KIT_ROOT}/modules/juce_webclap/juce_webclap_clap.cpp"
     "${KIT_ROOT}/modules/juce_webclap/juce_webclap_standalone.cpp")
 
-target_include_directories(module PRIVATE "${SURGE}/src/surge-xt" "${EXT}/clap/include")
+target_include_directories(module PRIVATE "${CMAKE_CURRENT_LIST_DIR}" "${SURGE}/src/surge-xt" "${EXT}/clap/include")
 target_compile_definitions(module PRIVATE SURGE_HEADLESS=1)
 target_compile_options(module PRIVATE -Wno-deprecated-declarations)
 target_link_libraries(module PRIVATE surge-common juce_wasm_audio_formats)
@@ -205,3 +206,63 @@ target_link_options(module PRIVATE ${JUCE_WEBCLAP_DSP_LINK_OPTIONS})
 set_target_properties(module PROPERTIES
     SUFFIX ".wasm"
     RUNTIME_OUTPUT_DIRECTORY "${BUNDLE}")
+
+# ---------------------------------------------------------------------------------------------------------------
+# ui.wasm: SurgeSynthEditor and its stand-in SurgeSynthProcessor, a full engine that never plays
+
+# What upstream's surge-xt target embeds with juce_add_binary_data
+file(GLOB SURGE_XT_BINARY_FILES
+    "${SURGE}/resources/classic-skin-svgs/*.svg"
+    "${SURGE}/resources/fonts/Lato*ttf"
+    "${SURGE}/resources/fonts/IndieFlower.ttf"
+    "${SURGE}/resources/fonts/FiraMono-Regular.ttf"
+    "${SURGE}/resources/surge-xt/memory-skin.xml"
+    "${SURGE}/resources/surge-xt/wtfile_icon.svg"
+    "${SURGE}/resources/surge-xt/wtscript_icon.svg")
+list(JOIN SURGE_XT_BINARY_FILES "\n" SURGE_XT_BINARY_LIST)
+file(WRITE "${GENERATED}/surge-xt-binary.txt" "${SURGE_XT_BINARY_LIST}\n")
+
+add_custom_command(
+    OUTPUT "${GENERATED}/SurgeXTBinary.h" "${GENERATED}/SurgeXTBinary.cpp"
+    COMMAND python3 "${KIT_ROOT}/scripts/binary_data.py" "${GENERATED}" SurgeXTBinary "@${GENERATED}/surge-xt-binary.txt"
+    DEPENDS ${SURGE_XT_BINARY_FILES} "${KIT_ROOT}/scripts/binary_data.py"
+    VERBATIM)
+
+set(WEB_FONT_FILES "${EXT}/fonts/DejaVuSans.ttf" "${EXT}/fonts/DejaVuSans-Bold.ttf")
+add_custom_command(
+    OUTPUT "${GENERATED}/WebFonts.h" "${GENERATED}/WebFonts.cpp"
+    COMMAND python3 "${KIT_ROOT}/scripts/binary_data.py" "${GENERATED}" WebFonts ${WEB_FONT_FILES}
+    DEPENDS ${WEB_FONT_FILES} "${KIT_ROOT}/scripts/binary_data.py"
+    VERBATIM)
+
+# The editor's sources, as upstream's target_sources lists them. Left out: OSC (no sockets), the CLAP preset
+# discovery (the kit wraps the processor), the Windows screen reader announcements.
+file(READ "${SURGE}/src/surge-xt/CMakeLists.txt" SURGE_XT_CMAKE)
+string(REGEX MATCH "target_sources\\(\\$\\{PROJECT_NAME\\} PRIVATE[^)]*\\)" SURGE_XT_BLOCK "${SURGE_XT_CMAKE}")
+string(REGEX MATCHALL "[A-Za-z0-9_/]+\\.cpp" SURGE_XT_FILES "${SURGE_XT_BLOCK}")
+list(REMOVE_ITEM SURGE_XT_FILES osc/OpenSoundControl.cpp SurgeCLAPPresetDiscovery.cpp)
+set(SURGE_XT_SOURCES)
+foreach(f IN LISTS SURGE_XT_FILES)
+    list(APPEND SURGE_XT_SOURCES "${SURGE}/src/surge-xt/${f}")
+endforeach()
+
+add_executable(ui
+    ui_main.cpp
+    ${SURGE_XT_SOURCES}
+    "${GENERATED}/SurgeXTBinary.cpp"
+    "${GENERATED}/WebFonts.cpp")
+
+target_include_directories(ui PRIVATE "${CMAKE_CURRENT_LIST_DIR}" "${SURGE}/src/surge-xt" "${SURGE}/src/surge-xt/gui" "${GENERATED}")
+target_compile_definitions(ui PRIVATE BUILD_IS_RELEASE=1 JUCE_ALLOW_STATIC_NULL_VARIABLES=0)
+target_compile_options(ui PRIVATE -Wno-deprecated-declarations)
+target_link_libraries(ui PRIVATE surge-common juce_wasm_keyboard juce_wasm_audio_formats)
+
+# The factory data (patches, wavetables, skins, presets, tunings, impulse responses) is Surge's data folder, at
+# /factory in Emscripten's filesystem (see the sst shim). The user's folder is /user, in memory.
+set(UI_LINK_OPTIONS ${JUCE_WEBCLAP_UI_LINK_OPTIONS}
+    "SHELL:--preload-file ${SURGE}/resources/data@/factory"
+    -sINITIAL_MEMORY=256MB)
+target_link_options(ui PRIVATE ${UI_LINK_OPTIONS})
+set_target_properties(ui PROPERTIES
+    SUFFIX ".js"
+    RUNTIME_OUTPUT_DIRECTORY "${BUNDLE}/ui")

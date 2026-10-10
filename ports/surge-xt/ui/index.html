@@ -4,131 +4,34 @@
     <meta charset="utf-8">
     <title>Surge XT</title>
     <style>
-        html, body { margin: 0; height: 100%; background: #1d2026; color: #d8dce4; font: 13px/1.4 system-ui, sans-serif; }
-        body { display: flex; flex-direction: column; }
-        header { display: flex; align-items: center; gap: 8px; padding: 10px 12px; background: #262a32;
-                 border-bottom: 1px solid #333844; }
-        header h1 { font-size: 14px; margin: 0 8px 0 0; color: #ff9000; font-weight: 600; }
-        header .name { flex: 1; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        button { background: #333844; color: inherit; border: 1px solid #454b59; border-radius: 3px;
-                 padding: 3px 10px; font: inherit; cursor: pointer; }
-        button:hover { background: #3d4351; }
-        main { flex: 1; display: flex; min-height: 0; }
-        ul { list-style: none; margin: 0; padding: 4px 0; overflow-y: auto; }
-        #categories { width: 160px; border-right: 1px solid #333844; }
-        #patches { flex: 1; columns: 3 180px; column-gap: 0; }
-        li { padding: 2px 12px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        li:hover { background: #2d323c; }
-        li.selected { background: #ff9000; color: #1d2026; }
-        footer { padding: 4px 12px; color: #7d8494; border-top: 1px solid #333844; font-size: 12px; }
+        html, body { margin: 0; padding: 0; background: #0d0d0d; overflow: hidden; }
+        canvas { display: block; outline: none; touch-action: none; }
+        #status { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+                  color: #9a9a9a; font: 13px/1.4 system-ui, sans-serif; pointer-events: none; }
     </style>
 </head>
 <body>
-<header>
-    <h1>Surge XT</h1>
-    <button id="prev" title="Previous patch">&#9664;</button>
-    <button id="next" title="Next patch">&#9654;</button>
-    <div class="name" id="name">Init</div>
-</header>
-<main>
-    <ul id="categories"></ul>
-    <ul id="patches"></ul>
-</main>
-<footer id="status">Factory patches. The full editor comes with the next step.</footer>
+<canvas id="editor" width="16" height="16"></canvas>
+<div id="status">Loading Surge XT…</div>
+<script src="webclap-ui.js"></script>
 <script>
-    // The plugin's webview page for the engine-only build: a factory patch browser. It speaks the kit's protocol
-    // (modules/juce_webclap/juce_webclap_protocol.h) directly: hello, then a patch is a state frame with the
-    // .fxp's chunk, which SurgeSynthProcessor::setStateInformation loads like a host's saved state.
-    const HELLO = 1, SNAPSHOT = 2, STATE = 5
-    const FXP_HEADER = 60 // fxChunkSetCustom (src/common/PatchFileHeaderStructs.h)
-
-    const frame = (type, payload) => {
-        const bytes = new Uint8Array(4 + payload.byteLength)
-        bytes[0] = type
-        bytes.set(new Uint8Array(payload), 4)
-        window.parent.postMessage(bytes.buffer, "*", [bytes.buffer])
-    }
-
-    const nameEl = document.getElementById("name")
-    const statusEl = document.getElementById("status")
-    const categoriesEl = document.getElementById("categories")
-    const patchesEl = document.getElementById("patches")
-
-    let patches = [], current = -1, category = null
-
-    // The patch name is in the state's XML: <meta name="..." ...>
-    const nameInState = bytes => {
-        const text = new TextDecoder("latin1").decode(bytes.subarray(0, Math.min(bytes.length, 4096)))
-        const m = /<meta[^>]*\sname="([^"]*)"/.exec(text)
-        return m ? m[1] : null
-    }
-
-    window.addEventListener("message", event => {
-        if (!(event.data instanceof ArrayBuffer)) return
-        const bytes = new Uint8Array(event.data)
-        if (bytes[0] !== SNAPSHOT && bytes[0] !== STATE) return
-        let state = bytes.subarray(4)
-        if (bytes[0] === SNAPSHOT) {
-            const view = new DataView(event.data)
-            const count = view.getUint32(4, true)
-            const at = 8 + count * 12
-            state = bytes.subarray(at + 4, at + 4 + view.getUint32(at, true))
-        }
-        const name = nameInState(state)
-        if (name !== null) {
-            nameEl.textContent = name
-            current = patches.findIndex(p => p.name === name)
-            if (current >= 0) showCategory(patches[current].category)
+    // The plugin's webview page. Everything except the debug messages below is the generic kit.
+    const status = document.getElementById("status")
+    startWebclapUI({
+        canvas: document.getElementById("editor"),
+        moduleUrl: "ui.js",
+        factory: "createWebclapUI",
+        onReady: info => {
+            status.remove()
+            // For the test host's stats line. Sent as JSON, which hosts that only relay binary frames ignore.
+            window.parent.postMessage({webclapDebug: "ready", initMs: info.initMs, width: info.width, height: info.height}, "*")
+        },
+        onStats: stats => window.parent.postMessage({webclapDebug: "stats", stats}, "*"),
+        onError: message => {
+            if (status.isConnected) status.textContent = "Error: " + message
+            window.parent.postMessage({webclapDebug: "error", message}, "*")
         }
     })
-
-    function showCategory(name) {
-        category = name
-        for (const li of categoriesEl.children) li.classList.toggle("selected", li.textContent === name)
-        patchesEl.replaceChildren(...patches.map((p, i) => [p, i]).filter(([p]) => p.category === name).map(([p, i]) => {
-            const li = document.createElement("li")
-            li.textContent = p.name
-            li.classList.toggle("selected", i === current)
-            li.onclick = () => load(i)
-            return li
-        }))
-    }
-
-    async function load(index) {
-        if (index < 0 || index >= patches.length) return
-        const p = patches[index]
-        try {
-            const response = await fetch("patches/" + p.path.split("/").map(encodeURIComponent).join("/"))
-            if (!response.ok) throw new Error(response.status + " " + response.statusText)
-            const fxp = await response.arrayBuffer()
-            frame(STATE, fxp.slice(FXP_HEADER))
-            current = index
-            nameEl.textContent = p.name
-            statusEl.textContent = `${p.category} / ${p.name}`
-            showCategory(p.category)
-        } catch (e) {
-            statusEl.textContent = `Could not load ${p.name}: ${e.message}`
-        }
-    }
-
-    document.getElementById("prev").onclick = () => load(current <= 0 ? patches.length - 1 : current - 1)
-    document.getElementById("next").onclick = () => load(current < 0 || current >= patches.length - 1 ? 0 : current + 1)
-
-    fetch("patches/index.json").then(r => r.json()).then(list => {
-        patches = list
-        const categories = [...new Set(list.map(p => p.category))]
-        categoriesEl.replaceChildren(...categories.map(c => {
-            const li = document.createElement("li")
-            li.textContent = c
-            li.onclick = () => showCategory(c)
-            return li
-        }))
-        showCategory(current >= 0 ? patches[current].category : categories[0])
-    }).catch(e => { statusEl.textContent = "No patch index: " + e.message })
-
-    const hello = new DataView(new ArrayBuffer(4))
-    hello.setUint32(0, 1, true)
-    frame(HELLO, hello.buffer)
 </script>
 </body>
 </html>

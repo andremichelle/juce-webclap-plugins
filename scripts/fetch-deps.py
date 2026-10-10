@@ -137,7 +137,9 @@ def surge_filter(path):
     return (path.startswith(("src/common/", "src/surge-xt/", "src/platform/", "src/lua/", "libs/airwindows/",
                              "libs/binn/", "libs/eurorack/", "resources/surge-shared/", "resources/fonts/",
                              "resources/classic-skin-svgs/"))
-            or path in ("src/cmake/CmakeRC.cmake", "LICENSE", "AUTHORS.md", "README.md"))
+            or path in ("src/cmake/CmakeRC.cmake", "LICENSE", "AUTHORS.md", "README.md",
+                        "resources/surge-xt/memory-skin.xml", "resources/surge-xt/wtfile_icon.svg",
+                        "resources/surge-xt/wtscript_icon.svg"))
 
 
 # Surge XT and the submodules it builds with, at the pins of surge main at the time of writing. JUCE (Surge pins the

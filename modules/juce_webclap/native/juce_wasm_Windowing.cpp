@@ -542,11 +542,15 @@ void Displays::findDisplays (const Desktop&)
     const auto& desktop = WasmDesktop::get();
 
     // The display is the screen space the window could grow into, not the canvas: editors offer only sizes that
-    // fit the display (zoom menus, constrainers). Windows outside the canvas are clipped.
+    // fit the display (zoom menus, constrainers). Windows outside the canvas are clipped. What lies beyond the
+    // canvas is a safe-area inset, which popup menus (and nothing else that a plugin uses) keep out of: a menu
+    // taller than the canvas scrolls, as on a small screen, instead of being cut off.
     Display d;
     d.isMain = true;
     d.totalArea = d.userArea = { jmax (desktop.logicalWidth, desktop.screenWidth),
                                  jmax (desktop.logicalHeight, desktop.screenHeight) };
+    d.safeAreaInsets = BorderSize<int> (0, 0, d.totalArea.getHeight() - desktop.logicalHeight,
+                                        d.totalArea.getWidth() - desktop.logicalWidth);
     d.topLeftPhysical = {};
     d.scale = desktop.pixelRatio;
     d.dpi = 96.0 * desktop.pixelRatio;
