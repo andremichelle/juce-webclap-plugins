@@ -15,6 +15,8 @@
       - the zoom: sent as a frame when it changes, and asked for at start, so a page that reconnects opens at the
         zoom it had (surge_frames.h). The editor is created once that answer is in, too.
       - modulation routings: a listener on the engine's modulation API sends them as frames (surge_frames.h)
+      - the meters: the DSP side sends its VU peaks and load, which go into this engine for the editor to show. As
+        long as they arrive, it counts as running audio (Surge's own idle check turns it off when they stop).
       - the skin is Surge's dark one until the user picks another (user settings live in memory, at /user)
 
     Exports (called from webclap-ui.js):
@@ -234,6 +236,16 @@ EMSCRIPTEN_KEEPALIVE int wclap_ui_init (double pixelRatio)
         {
             std::memcpy (&app->keptZoom, payload, sizeof (int32_t));
             app->zoomAnswered = true;
+        }
+        else if (type == surge_webclap::meters && size == sizeof (surge_webclap::MetersFrame))
+        {
+            surge_webclap::MetersFrame m;
+            std::memcpy (&m, payload, sizeof (m));
+            auto& synth = *app->processor->surge;
+            std::memcpy (synth.vu_peak, m.vuPeak, sizeof (m.vuPeak));
+            synth.cpu_level.store (m.cpuLevel);
+            synth.audio_processing_active = true;
+            synth.processRunning = 0;
         }
     };
 

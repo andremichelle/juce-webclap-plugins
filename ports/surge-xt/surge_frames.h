@@ -13,6 +13,10 @@
                               for the one the DSP side kept; DSP -> UI the answer (-1: none kept). A page that
                               reconnects (a host moving the window into a popout reloads it) keeps the zoom. A view
                               setting, not state: Surge writes it into the patch but does not read it back.
+        meters    DSP -> UI   f32 vu_peak[8], f32 cpu_level: the engine's output and effect meters and its load,
+                              30 times a second while the page is open. The editor's engine never plays, so these
+                              drive its meters, and their arrival tells it audio runs (else Surge's VU meter says
+                              "Audio Output Unavailable").
 */
 
 #pragma once
@@ -28,7 +32,15 @@ enum Frame : juce::webclap::protocol::uint8
     modSet = juce::webclap::protocol::firstPluginType,
     modMute,
     modClear,
-    zoom
+    zoom,
+    meters
+};
+
+/** What the meters frame carries. */
+struct MetersFrame
+{
+    float vuPeak[8];
+    float cpuLevel;
 };
 
 /** The routing a modulation frame addresses, and its value (depth or mute). */

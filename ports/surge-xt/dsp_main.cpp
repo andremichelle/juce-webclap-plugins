@@ -4,7 +4,7 @@
 
     The PageExtension applies the editor's modulation routings (surge_frames.h) to this engine, through the same
     modulation API the editor called on its own, and marks the host's state dirty. It keeps the editor's zoom for
-    pages that reconnect.
+    pages that reconnect, and sends the engine's meters to the editor.
 */
 
 #include <juce_webclap/juce_webclap_clap.h>
@@ -80,10 +80,18 @@ struct SurgePage final : juce::webclap::PageExtension
         p.updateHostDisplay (juce::AudioProcessor::ChangeDetails().withNonParameterStateChanged (true));
     }
 
-    void update (juce::AudioProcessor&, const Sender& send) override
+    void update (juce::AudioProcessor& processor, const Sender& send) override
     {
         if (std::exchange (zoomRequested, false))
             send (zoom, &keptZoom, sizeof (keptZoom));
+
+        if (auto& p = static_cast<SurgeSynthProcessor&> (processor); p.surge != nullptr)
+        {
+            MetersFrame m {};
+            std::memcpy (m.vuPeak, p.surge->vu_peak, sizeof (m.vuPeak));
+            m.cpuLevel = p.surge->cpu_level.load();
+            send (meters, &m, sizeof (m));
+        }
     }
 
 private:

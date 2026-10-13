@@ -396,8 +396,10 @@ Stage 2, the editor:
   with audio, `loadPatchInBackgroundThread` already does), and the glue sends the whole patch as state. Modulation
   routings go through a `ModulationAPIListener` as `modSet`/`modMute`/`modClear` frames, applied with the same API
   on the DSP side. The zoom crosses as a view setting the DSP side keeps for pages that reconnect, as in Odin 2:
-  Surge writes its instance zoom into the patch but never reads it back. Not yet: MSEG, step sequencer, formula,
-  tuning and other non-parameter edits (stage 3), the VU meter and other displays the DSP side would feed.
+  Surge writes its instance zoom into the patch but never reads it back. The DSP side sends its VU peaks and load
+  as a `meters` frame (30 Hz while the page is open); their arrival also keeps the editor's VU meter from saying
+  "Audio Output Unavailable". Not yet: MSEG, step sequencer, formula, tuning and other non-parameter edits
+  (stage 3), and other displays the DSP side would feed.
 - The skin defaults to Surge's factory dark skin (user settings live in memory at `/user`).
 - No undo history of Surge's own: the host's history covers the plugin through its state (openDAW records parameter
   and state changes and reloads the state on undo), and both reacted to one Cmd+Z in the plugin window. The undo
