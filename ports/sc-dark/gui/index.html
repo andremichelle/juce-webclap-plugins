@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Polarity SC Dark · WebCLAP</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header><div><div class="brand"><h1>POLARITY <span>SC DARK</span></h1><button id="about" type="button" aria-haspopup="dialog" aria-controls="help-dialog">About / Help</button></div><p>Spectral compressor <span class="badge">WebCLAP preview</span></p></div><div id="actions"><div class="action-pair"><button id="delta" aria-pressed="false">Listen to delta</button><button type="button" class="help-button" data-help="delta" aria-label="Explain Listen to delta" aria-haspopup="dialog" aria-controls="help-dialog">?</button></div><div class="action-pair"><button id="match">Match level · 5 s</button><button type="button" class="help-button" data-help="match" aria-label="Explain Match level" aria-haspopup="dialog" aria-controls="help-dialog">?</button></div></div></header>
+  <main>
+    <nav class="presets" aria-label="Effect presets">
+      <label for="preset-select">Preset</label><button type="button" class="help-button" data-help="presets" aria-label="Explain Presets" aria-haspopup="dialog" aria-controls="help-dialog">?</button><select id="preset-select" aria-label="Preset" disabled><option>Connecting…</option></select>
+      <div class="action-pair"><button id="preset-save" disabled>Save preset…</button><button type="button" class="help-button" data-help="preset-save" aria-label="Explain Save preset" aria-haspopup="dialog" aria-controls="help-dialog">?</button></div><div class="action-pair"><button id="preset-export" disabled>Export</button><button type="button" class="help-button" data-help="preset-export" aria-label="Explain Export preset" aria-haspopup="dialog" aria-controls="help-dialog">?</button></div><div class="action-pair"><button id="preset-import" disabled>Import</button><button type="button" class="help-button" data-help="preset-import" aria-label="Explain Import preset" aria-haspopup="dialog" aria-controls="help-dialog">?</button></div><div class="action-pair"><button id="preset-delete" disabled>Delete</button><button type="button" class="help-button" data-help="preset-delete" aria-label="Explain Delete preset" aria-haspopup="dialog" aria-controls="help-dialog">?</button></div>
+      <input id="preset-file" type="file" accept=".json,.scdark.json,application/json" hidden>
+    </nav>
+    <section class="curve-editor" aria-label="Threshold curve editor">
+    <section class="analyzer" aria-label="Live spectrum and compression gain"><div class="plot"><canvas id="spectrum" aria-label="Live spectrum, thresholds and numbered curve points"></canvas><div id="point-markers" aria-label="Enabled curve points"></div></div><div class="legend"><span class="input">Input envelope</span><span class="down">Downward threshold</span><span class="up">Upward threshold</span><span class="gain">Gain change</span><span class="points">Curve points</span><button type="button" class="help-button" data-help="graph" aria-label="Explain the graph" aria-haspopup="dialog" aria-controls="help-dialog">?</button></div></section>
+    <details id="curve-details"><summary>Threshold curve points <span id="point-count">0 / 8 enabled</span></summary><p>Set Enabled on for a point. Drag its number left or right to change Frequency. Drag up or down to change Offset. Press Escape during a drag to restore the starting values. Select a number to open its controls.</p><div id="points"></div></details>
+    </section>
+    <div id="controls" aria-label="Compressor parameters"></div>
+  </main>
+  <footer><span id="status" role="status">Connecting to the audio engine…</span><span id="latency"></span><a href="../LICENSE" target="_blank" rel="noopener">GPL-3.0-or-later · original DSP by Polarity / Robbert van der Helm</a></footer>
+  <dialog id="preset-name-dialog"><form method="dialog"><h2>Save preset in this browser</h2><label for="preset-name">Name</label><input id="preset-name" type="text" maxlength="80" autocomplete="off"><p>Export a preset file to keep a backup.</p><div class="dialog-actions"><button type="button" id="preset-name-cancel">Cancel</button><button value="save">Save</button></div></form></dialog>
+  <dialog id="preset-delete-dialog"><form method="dialog"><h2>Delete preset?</h2><p>Delete <strong id="preset-delete-name"></strong> from this browser? Export a backup first. Preset deletion does not change the current control values.</p><div class="dialog-actions"><button value="cancel">Cancel</button><button value="delete">Delete preset</button></div></form></dialog>
+  <dialog id="help-dialog" class="help-dialog" aria-labelledby="help-title">
+    <div class="help-heading"><p class="help-eyebrow">SC Dark · Help</p><button id="help-close" type="button">Close help</button></div>
+    <h2 id="help-title" tabindex="-1"></h2><div id="help-body" class="help-prose"></div>
+    <div class="help-nav"><button id="help-back" type="button">Beginner guide</button><a href="./guide.html" target="_blank" rel="noopener">Open guide in a tab</a></div>
+  </dialog>
+  <script type="module" src="app.js"></script>
+</body>
+</html>

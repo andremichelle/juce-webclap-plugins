@@ -1,0 +1,267 @@
+diff --git a/framework/nih_plug/src/plugin/clap.rs b/framework/nih_plug/src/plugin/clap.rs
+index e490fdd..b7adf16 100644
+--- a/framework/nih_plug/src/plugin/clap.rs
++++ b/framework/nih_plug/src/plugin/clap.rs
+@@ -4,6 +4,17 @@ use crate::prelude::{ClapFeature, RemoteControlsContext};
+ /// Provides auxiliary metadata needed for a CLAP plugin.
+ #[allow(unused_variables)]
+ pub trait ClapPlugin: Plugin {
++    #[cfg(target_arch = "wasm32")]
++    const WEBVIEW_URI: Option<&'static str> = None;
++
++    #[cfg(target_arch = "wasm32")]
++    fn webview_open(&mut self, _open: bool) {}
++
++    #[cfg(target_arch = "wasm32")]
++    fn webview_message(&mut self, _message: &[u8], _context: std::sync::Arc<dyn crate::prelude::GuiContext>, _pending_parameters: bool) -> Vec<u8> {
++        Vec::new()
++    }
++
+     /// A unique ID that identifies this particular plugin. This is usually in reverse domain name
+     /// notation, e.g. `com.manufacturer.plugin-name`.
+     const CLAP_ID: &'static str;
+diff --git a/framework/nih_plug/src/wrapper/clap/wrapper.rs b/framework/nih_plug/src/wrapper/clap/wrapper.rs
+index 3b6a63e..f0e9abb 100644
+--- a/framework/nih_plug/src/wrapper/clap/wrapper.rs
++++ b/framework/nih_plug/src/wrapper/clap/wrapper.rs
+@@ -96,6 +96,9 @@ use crate::wrapper::util::{
+     clamp_input_event_timing, clamp_output_event_timing, hash_param_id, process_wrapper, strlcpy,
+ };
+
++#[cfg(target_arch = "wasm32")]
++mod webview;
++
+ /// How many output parameter changes we can store in our output parameter change queue. Storing
+ /// more than this many parameters at a time will cause changes to get lost.
+ const OUTPUT_EVENT_QUEUE_CAPACITY: usize = 2048;
+@@ -124,6 +127,9 @@ pub struct Wrapper<P: ClapPlugin> {
+     /// the sizes communicated to and from the DAW should be scaled by this factor since NIH-plug's
+     /// APIs only deal in logical pixels.
+     editor_scaling_factor: AtomicF32,
++    /// Last accepted logical WebCLAP size, owned by this plugin instance.
++    #[cfg(target_arch = "wasm32")]
++    web_gui_size: AtomicCell<(u32, u32)>,
+
+     is_processing: AtomicBool,
+     /// The current IO configuration, modified through the `clap_plugin_audio_ports_config`
+@@ -336,6 +342,12 @@ impl<P: ClapPlugin> EventLoop<Task<P>, Wrapper<P>> for Wrapper<P> {
+     }
+
+     fn schedule_background(&self, task: Task<P>) -> bool {
++        #[cfg(target_arch = "wasm32")]
++        {
++            let _ = task;
++            return false;
++        }
++        #[cfg(not(target_arch = "wasm32"))]
+         self.background_thread
+             .borrow()
+             .as_ref()
+@@ -542,6 +554,8 @@ impl<P: ClapPlugin> Wrapper<P> {
+             editor: AtomicRefCell::new(None),
+             editor_handle: Mutex::new(None),
+             editor_scaling_factor: AtomicF32::new(1.0),
++            #[cfg(target_arch = "wasm32")]
++            web_gui_size: AtomicCell::new((1200, 1000)),
+
+             is_processing: AtomicBool::new(false),
+             current_audio_io_layout: AtomicCell::new(
+@@ -721,8 +735,11 @@ impl<P: ClapPlugin> Wrapper<P> {
+             .map(Mutex::new);
+
+         // Same with the background thread
+-        *wrapper.background_thread.borrow_mut() =
+-            Some(BackgroundThread::get_or_create(Arc::downgrade(&wrapper)));
++        #[cfg(not(target_arch = "wasm32"))]
++        {
++            *wrapper.background_thread.borrow_mut() =
++                Some(BackgroundThread::get_or_create(Arc::downgrade(&wrapper)));
++        }
+
+         wrapper
+     }
+@@ -2312,6 +2329,14 @@ impl<P: ClapPlugin> Wrapper<P> {
+
+         let id = CStr::from_ptr(id);
+
++        #[cfg(target_arch = "wasm32")]
++        if P::WEBVIEW_URI.is_some() {
++            let extension = Self::web_extension(id);
++            if !extension.is_null() {
++                return extension;
++            }
++        }
++
+         if id == CLAP_EXT_AUDIO_PORTS_CONFIG {
+             &wrapper.clap_plugin_audio_ports_config as *const _ as *const c_void
+         } else if id == CLAP_EXT_AUDIO_PORTS {
+@@ -3153,6 +3178,11 @@ impl<P: ClapPlugin> Wrapper<P> {
+         }
+         let length = u64::from_le_bytes(length_bytes);
+
++        #[cfg(target_arch = "wasm32")]
++        if length > 16 * 1024 * 1024 {
++            return false;
++        }
++
+         let mut read_buffer: Vec<u8> = Vec::with_capacity(length as usize);
+         if !read_stream(&*stream, read_buffer.spare_capacity_mut()) {
+             nih_debug_assert_failure!(
+diff --git a/plugin/Cargo.toml b/plugin/Cargo.toml
+index 3d9ceca..4586848 100644
+--- a/plugin/Cargo.toml
++++ b/plugin/Cargo.toml
+@@ -12,25 +12,31 @@ crate-type = ["lib", "cdylib"]
+ [[bin]]
+ name = "polarity_sc_dark_standalone"
+ path = "src/main.rs"
++required-features = ["desktop"]
+
+ [dependencies]
+-nih_plug = { path = "../framework/nih_plug", features = ["assert_process_allocs", "standalone"] }
+-nih_plug_vizia = { path = "../framework/nih_plug_vizia" }
++nih_plug = { path = "../framework/nih_plug", default-features = false }
+
+ realfft = "3.0"
+ hound = "3.5"
+-rfd = "0.15"
+
+ # For the GUI
+ atomic_float = "0.1"
+ atomic_refcell = "0.1"
+ crossbeam = "0.8"
+-open = "3.0"
+ serde = { version = "1.0", features = ["derive"] }
+ serde_json = "1.0"
+-directories = "5.0"
+ triple_buffer = "6.2"
+
++[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
++nih_plug_vizia = { path = "../framework/nih_plug_vizia", optional = true }
++rfd = { version = "0.15", optional = true }
++open = { version = "3.0", optional = true }
++directories = { version = "5.0", optional = true }
++
+ [features]
++default = ["desktop"]
++desktop = ["nih_plug/vst3", "nih_plug/standalone", "nih_plug/assert_process_allocs", "dep:nih_plug_vizia", "dep:rfd", "dep:open", "dep:directories"]
++webclap = []
+ # Read theme.css from disk at runtime and reload it while the editor is open.
+-hot-reload = []
++hot-reload = ["desktop"]
+diff --git a/plugin/src/lib.rs b/plugin/src/lib.rs
+index 2ca3d6c..aa8853c 100644
+--- a/plugin/src/lib.rs
++++ b/plugin/src/lib.rs
+@@ -19,6 +19,7 @@ use atomic_float::AtomicF32;
+ use atomic_refcell::AtomicRefCell;
+ use frozen_ir::FrozenIrData;
+ use nih_plug::prelude::*;
++#[cfg(feature = "desktop")]
+ use nih_plug_vizia::ViziaState;
+ use realfft::num_complex::Complex32;
+ use realfft::{ComplexToReal, RealFftPlanner, RealToComplex};
+@@ -29,13 +30,18 @@ use triple_buffer::TripleBuffer;
+ mod analyzer;
+ mod compressor_bank;
+ mod curve;
++#[cfg(feature = "desktop")]
+ mod curve_preset;
+ mod dry_wet_mixer;
++#[cfg(feature = "desktop")]
+ mod editor;
++#[cfg(not(feature = "desktop"))]
++mod webclap;
+ mod frozen_ir;
+ mod match_curve;
+ mod match_level;
+
++#[cfg(feature = "desktop")]
+ use crate::compressor_bank::ThresholdMode;
+ use crate::match_curve::MatchCurveRuntime;
+ use crate::match_level::{MatchMeter, MatchRuntime, OUTPUT_GAIN_MAX_DB, OUTPUT_GAIN_MIN_DB};
+@@ -49,6 +55,7 @@ const MIN_OVERLAP_ORDER: usize = 2;
+ const DEFAULT_OVERLAP_ORDER: usize = 4;
+ const MAX_OVERLAP_ORDER: usize = 5;
+
++#[cfg(feature = "desktop")]
+ const VST3_CLASS_ID_BYTES: [u8; 16] = *b"Polarity-SC-Dark";
+
+ /// This is a port of <https://github.com/robbert-vdh/spectral-compressor/>.
+@@ -108,8 +115,11 @@ struct Plan {
+ pub struct SpectralCompressorParams {
+     /// The editor state, saved together with the parameter state so the custom scaling can be
+     /// restored.
++    #[cfg(feature = "desktop")]
+     #[persist = "editor-state"]
+     pub editor_state: Arc<ViziaState>,
++    #[cfg(not(feature = "desktop"))]
++    pub editor_state: Arc<webclap::WebEditorState>,
+
+     // NOTE: These `Arc`s are only here temporarily to work around Vizia's Lens requirements so we
+     // can use the generic UIs
+@@ -299,7 +309,10 @@ impl SpectralCompressorParams {
+     /// or ratio parameters causes the passed compressor bank's parameters to be updated.
+     pub fn new(compressor_bank: &compressor_bank::CompressorBank) -> Self {
+         SpectralCompressorParams {
++            #[cfg(feature = "desktop")]
+             editor_state: editor::default_state(),
++            #[cfg(not(feature = "desktop"))]
++            editor_state: Arc::new(webclap::WebEditorState::default()),
+
+             global: Arc::new(GlobalParams::default()),
+
+@@ -344,6 +357,7 @@ impl Plugin for SpectralCompressor {
+         self.params.clone()
+     }
+
++    #[cfg(feature = "desktop")]
+     fn editor(&mut self, _async_executor: AsyncExecutor<Self>) -> Option<Box<dyn Editor>> {
+         editor::create(
+             self.params.editor_state.clone(),
+@@ -757,6 +771,17 @@ fn process_stft_sidechain(
+ }
+
+ impl ClapPlugin for SpectralCompressor {
++    #[cfg(target_arch = "wasm32")]
++    const WEBVIEW_URI: Option<&'static str> = Some("/gui/index.html");
++
++    #[cfg(target_arch = "wasm32")]
++    fn webview_open(&mut self, open: bool) { self.web_open(open); }
++
++    #[cfg(target_arch = "wasm32")]
++    fn webview_message(&mut self, message: &[u8], context: Arc<dyn GuiContext>, pending_parameters: bool) -> Vec<u8> {
++        self.web_message(message, context, pending_parameters)
++    }
++
+     const CLAP_ID: &'static str = "de.polarity-music.polarity-sc-dark";
+     const CLAP_DESCRIPTION: Option<&'static str> =
+         Some("Turn things into pink noise on demand and more.");
+@@ -773,6 +798,7 @@ impl ClapPlugin for SpectralCompressor {
+     ];
+ }
+
++#[cfg(feature = "desktop")]
+ impl Vst3Plugin for SpectralCompressor {
+     const VST3_CLASS_ID: [u8; 16] = VST3_CLASS_ID_BYTES;
+     const VST3_SUBCATEGORIES: &'static [Vst3SubCategory] = &[
+@@ -783,4 +809,5 @@ impl Vst3Plugin for SpectralCompressor {
+ }
+
+ nih_export_clap!(SpectralCompressor);
++#[cfg(feature = "desktop")]
+ nih_export_vst3!(SpectralCompressor);
+diff --git a/plugin/src/match_level.rs b/plugin/src/match_level.rs
+index 5f59fa9..2573703 100644
+--- a/plugin/src/match_level.rs
++++ b/plugin/src/match_level.rs
+@@ -34,6 +34,9 @@ pub(crate) struct MatchRuntime {
+ }
+
+ impl MatchRuntime {
++    pub(crate) fn cancel(&self) {
++        self.state.store(MatchState::Idle as u8, Ordering::Release);
++    }
+     pub(crate) fn new() -> Self {
+         Self {
+             state: AtomicU8::new(MatchState::Idle as u8),

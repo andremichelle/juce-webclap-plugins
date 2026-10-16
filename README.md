@@ -20,10 +20,17 @@ its plugin window.
 - [Surge XT](https://github.com/surge-synthesizer/surge): an `AudioProcessor` whose editor reaches into the whole
   engine, so `ui.wasm` runs a second, silent engine as its stand-in. Parameters cross over as usual, patch loads as
   state, modulation routings as frames (`ports/surge-xt/surge_frames.h`). Without Lua, OSC and MTS-ESP.
+- [Polarity SC Dark](https://github.com/polarity/plugin.nih.polarity-sc-dark): a spectral compressor, built with
+  Rust/NIH-plug and WASI rather than JUCE/Emscripten. Its separate HTML/Canvas interface includes all 47 parameters,
+  presets, draggable threshold points, and bundled help. See [the port guide](ports/sc-dark/README.md).
 
 ## Build and run
 
 Needs Emscripten (emsdk, tested with 3.1.51), CMake, Python 3.
+
+SC Dark is an exception: it needs Rust stable with `wasm32-wasip1`, Node 23 or later, Python 3, Git, and tar.
+Run `scripts/build-sc-dark.sh --test`. The import archive is `build/sc-dark/polarity-sc-dark.wclap.tar.gz`.
+It does not use the instrument-only test host below; test it as an audio effect in openDAW.
 
 ```sh
 scripts/build-obxf.sh                 # fetches pinned deps into external/, patches JUCE, builds
@@ -95,24 +102,27 @@ ports/six-sines/                  Six Sines: CMake build, the CLAP plugin with w
 ports/ripplerx/                   RipplerX: CMake build, the module's PageExtension, the editor's glue
 ports/odin2/                      Odin 2: CMake build, the module's PageExtension, the editor's glue
 ports/sst-shim/                   sst-plugininfra for the browser (paths, platform), shared by Surge-team ports
+ports/sc-dark/                    Rust/WASI spectral effect, source patch/overlay, HTML/Canvas UI, help and tests
 licenses/                         license texts the bundles ship (AGPL-3.0, for JUCE)
 scripts/                          fetch-deps.py, build-<port>.sh, bundle-license.sh, pack-wclap.py, binary_data.py, serve.py
 ```
 
 ## Licenses
 
-The kit, scripts and docs are MIT ([LICENSE](LICENSE)). Each port keeps its plugin's license: `ports/obxf` is
+The kit, scripts and docs are MIT ([LICENSE](LICENSE)), except the SC Dark port and its build wrapper,
+which are GPL-3.0-or-later ([ports/sc-dark/LICENSE](ports/sc-dark/LICENSE)). SC Dark does not link JUCE.
+Each port keeps its plugin's license: `ports/obxf` is
 GPL-3.0-or-later ([ports/obxf/LICENSE](ports/obxf/LICENSE)), `ports/ripplerx` GPL-3.0
 ([ports/ripplerx/LICENSE](ports/ripplerx/LICENSE)), `ports/odin2` GPL-3.0-or-later
 ([ports/odin2/LICENSE](ports/odin2/LICENSE)), `ports/six-sines` MIT like Six Sines' source (whose combined work
 is GPL-3.0). `patches/juce-8-wasm.patch` modifies JUCE and falls under JUCE's license, the other patches under their
 plugin's license.
 
-Each bundle ships its license (`LICENSE`, AGPL-3.0), `NOTICES.md` (components, copyrights, the repository commit
+Each JUCE bundle ships its license (`LICENSE`, AGPL-3.0), `NOTICES.md` (components, copyrights, the repository commit
 it was built from) and the longer texts in `licenses/`, see `ports/<port>/NOTICES.md.in` and
 `scripts/bundle-license.sh`. Build hosted bundles from a clean, pushed commit, so the source link matches.
 
-Built bundles link JUCE, so they are AGPLv3 (or covered by a commercial JUCE license) and also under the port's
+JUCE-built bundles link JUCE, so they are AGPLv3 (or covered by a commercial JUCE license) and also under the port's
 license. JUCE is AGPLv3/commercial, OB-Xf is GPL-3.0-or-later, RipplerX GPL-3.0, Odin 2 GPL-3.0-or-later (its Aldrich font
 OFL-1.1), Six Sines MIT (GPL-3.0 as built),
 the CLAP headers MIT, the DejaVu fonts under the Bitstream Vera license; none of them is checked in,
