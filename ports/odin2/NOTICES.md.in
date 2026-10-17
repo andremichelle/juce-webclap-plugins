@@ -25,7 +25,7 @@ Odin's reverb is adapted from Fons Adriaensen's [zita-rev1](https://github.com/r
 | Component | In | Copyright | License |
 |---|---|---|---|
 | [Odin 2](https://github.com/TheWaveWarden/odin2), incl. wavetables, presets and graphics | both | 2020-2021 TheWaveWarden | GPL-3.0-or-later |
-| WebCLAP port ([juce-webclap-plugins](https://github.com/andremichelle/juce-webclap-plugins)) | both | André Michelle | MIT |
+| WebCLAP port ([open-webclap](https://github.com/andremichelle/open-webclap)) | both | André Michelle | MIT |
 | [JUCE](https://juce.com) | both | Raw Material Software Limited | AGPL-3.0 |
 | [tuning-library](https://github.com/surge-synthesizer/tuning-library) | both | 2019-2020 Paul Walker | MIT |
 | [JSON for Modern C++](https://github.com/nlohmann/json) | ui | 2013-2022 Niels Lohmann | MIT |
