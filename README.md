@@ -1,7 +1,9 @@
-# JUCE WebCLAP plugins
+# open-webclap
 
-Open-source JUCE plugins ported to WebCLAP, and the kit that ports them: `modules/juce_webclap` runs a JUCE editor
-in a browser canvas as the UI of a WebCLAP plugin. See [PLAN.md](PLAN.md) for the design.
+Open-source audio plugins ported to WebCLAP.
+
+The JUCE ports come with the kit that ports them: `modules/juce_webclap` runs a JUCE editor in a browser canvas as
+the UI of a WebCLAP plugin. See [PLAN.md](PLAN.md) for the design.
 
 Ports live in `ports/`, each built as a WebCLAP bundle: `module.wasm` (the DSP as a CLAP plugin) and `ui/` (the
 plugin's unmodified editor as `ui.wasm`). A test host page runs the module in an AudioWorklet and shows the editor in
