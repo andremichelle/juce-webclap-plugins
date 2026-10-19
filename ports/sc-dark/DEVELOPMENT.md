@@ -143,7 +143,10 @@ Native curve-file tools, automatic Match Curve, and impulse-response export are 
 Help covers all 47 parameters and action controls.
 It does not require a remote service or account.
 Help must not change parameter values.
-Small question marks retain invisible click targets of at least 24 pixels.
+Inline help buttons have a visible border and background. Their click targets are at least 24 pixels.
+Only processing settings have inline help. All 47 parameters and utility actions remain explained in the beginner guide.
+The graph is a direct child of the scrolling main area. Sticky positioning keeps it visible through the full control list.
+The build generates `gui/license.html` from the license and notices. The footer does not request an extensionless file from the host.
 
 Automated checks do not establish audible approval.
 This is an experimental port, not an official Polarity release.

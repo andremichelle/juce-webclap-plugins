@@ -209,6 +209,18 @@ const pointTopics = {
     }
 };
 
+const inlineParameters = new Set([
+    'tresh_global', 'thresh_center_freq', 'thresh_curve_slope', 'thresh_curve_curve', 'thresh_mode', 'thresh_sc_link', 'gain_smoothing',
+    'downwards_threshold_offset', 'downwards_ratio', 'downwards_high_freq_rolloff', 'downwards_knee',
+    'upwards_threshold_offset', 'upwards_ratio', 'upwards_high_freq_rolloff', 'upwards_knee',
+    'stft_window', 'stft_overlap', 'attack', 'release', 'compressor_freeze',
+]);
+
+// Utilities remain explained in the guide, without inline buttons on the processing surface.
+export function hasInlineHelp(id) {
+    return inlineParameters.has(id) || /^curve_point_(enabled|frequency|offset)_[1-8]$/.test(id);
+}
+
 export function helpFor(id) {
     if (Object.hasOwn(topics, id)) return topics[id];
     const point = /^curve_point_(enabled|frequency|offset)_([1-8])$/.exec(id);

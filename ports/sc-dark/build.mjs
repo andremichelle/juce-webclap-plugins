@@ -5,6 +5,7 @@ import {cpSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, 
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {writeDependencyNotices} from './dependency-notices.mjs';
+import {licensePage} from './license-page.mjs';
 
 const port = fileURLToPath(new URL('.', import.meta.url));
 const root = path.resolve(port, '../..');
@@ -87,6 +88,7 @@ if (!args.has('--prepare-only')) {
     // Reject stale assets rather than silently shipping files from an earlier build.
     if (existsSync(path.join(bundle, 'gui'))) {
         const expected = new Set(files(path.join(port, 'gui')));
+        expected.add('license.html');
         for (const file of files(path.join(bundle, 'gui'))) if (!expected.has(file)) throw new Error(`Stale GUI asset: ${file}. Move the bundle aside.`);
     }
     cpSync(path.join(port, 'gui'), path.join(bundle, 'gui'), {recursive: true, filter: file => path.basename(file) !== '.DS_Store'});
@@ -112,6 +114,11 @@ if (!args.has('--prepare-only')) {
     const notices = readFileSync(path.join(port, 'NOTICES.md.in'), 'utf8')
         .replaceAll('@SOURCE_URL@', sourceURL + (dirty ? ' (plus local changes; not a release build)' : ''));
     writeFileSync(path.join(bundle, 'NOTICES.md'), notices);
+    writeFileSync(path.join(bundle, 'gui/license.html'), licensePage({
+        license: readFileSync(path.join(port, 'LICENSE'), 'utf8'),
+        frameworkLicense: readFileSync(path.join(port, 'licenses/NIH-plug-ISC.txt'), 'utf8'),
+        notices, sourceURL,
+    }));
     writeFileSync(path.join(bundle, 'memory.json'), JSON.stringify({recommendedInitialBytes: 64 * 1024 * 1024}));
     writeFileSync(path.join(bundle, 'source.json'), JSON.stringify({original: upstream.repository, upstreamRevision: upstream.revision,
         portSource: sourceURL, portRevision: revision, dirty, version: `${upstream.version}-webclap-preview`, modified: true,

@@ -3,6 +3,7 @@ import {curveLayout} from './curve-layout.mjs';
 import {SpectrumAnimation} from './spectrum-animation.mjs';
 import {PointDragging} from './point-drag.mjs';
 import {createHelpUI} from './help.mjs';
+import {hasInlineHelp} from './help-content.mjs';
 const encode = new TextEncoder(), decode = new TextDecoder();
 const send = message => window.parent.postMessage(encode.encode(JSON.stringify(message)).buffer, '*');
 const presets = createPresetUI({send, status: text => { document.querySelector('#status').textContent = text; }});
@@ -44,7 +45,9 @@ function createControl(param) {
     label.textContent = param.name.replace(/^(Downwards|Upwards|Threshold) /, '').replace('Global Threshold', 'Threshold').replace('Hi-Freq Rolloff', 'HF rolloff').replace('SC Channel Link', 'SC link');
     label.title = param.name;
     const labelRow = document.createElement('div'); labelRow.className = 'control-label';
-    labelRow.append(label, help.button(param.id, param.name)); control.append(labelRow);
+    labelRow.append(label);
+    if (hasInlineHelp(param.id)) labelRow.append(help.button(param.id, param.name));
+    control.append(labelRow);
     const id = `p-${param.id}`; label.htmlFor = id;
     const set = value => { send({op: 'begin', id: param.id}); send({op: 'set', id: param.id, value}); send({op: 'end', id: param.id}); };
     const isToggle = param.steps === 1;
@@ -178,6 +181,9 @@ function draw() {
     }
 }
 new ResizeObserver(() => { pointDragging.finish(true); invalidate(); }).observe(canvas);
+new ResizeObserver(([entry]) => {
+    document.querySelector('main').style.setProperty('--analyzer-height', `${entry.target.getBoundingClientRect().height}px`);
+}).observe(document.querySelector('.analyzer'));
 reducedMotion.addEventListener('change', () => {
     spectrum.update(state?.bins ?? [], performance.now(), reducedMotion.matches); invalidate();
 });

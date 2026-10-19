@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {readFileSync} from 'node:fs';
-import {helpFor, topics, guideSections, referenceGroups} from './gui/help-content.mjs';
+import {helpFor, hasInlineHelp, topics, guideSections, referenceGroups} from './gui/help-content.mjs';
 
 const parameterIds = ['tresh_global', 'thresh_center_freq', 'thresh_curve_slope', 'thresh_curve_curve', 'thresh_mode', 'thresh_sc_link', 'gain_smoothing',
     'output', 'bypass', 'dry_wet', 'stft_window', 'stft_overlap', 'attack', 'release', 'compressor_freeze',
@@ -20,6 +20,13 @@ test('all 47 parameters have a complete short explanation, example and caution',
 test('point help preserves the selected number and rejects nonexistent controls', () => {
     for (let index = 1; index <= 8; index++) assert(helpFor(`curve_point_offset_${index}`).title.startsWith(`Point ${index}:`));
     for (const id of ['missing', '__proto__', 'constructor', 'curve_point_enabled_0', 'curve_point_enabled_9', 'curve_point_offset_1_extra']) assert.equal(helpFor(id), undefined);
+});
+test('inline help covers processing settings but not presets or generic controls', () => {
+    const inline = parameterIds.filter(hasInlineHelp);
+    assert.equal(inline.length, 44);
+    for (const id of inline) assert(helpFor(id));
+    for (const id of ['tresh_global', 'downwards_ratio', 'stft_window', 'attack', 'compressor_freeze', 'curve_point_frequency_8']) assert(hasInlineHelp(id), id);
+    for (const id of ['output', 'bypass', 'dry_wet', 'delta', 'match', 'graph', 'presets', 'preset-save', 'preset-export', 'preset-import', 'preset-delete', 'missing', 'curve_point_offset_9']) assert(!hasInlineHelp(id), id);
 });
 test('guide references only available topics and covers the full set of non-point controls', () => {
     const references = new Set(referenceGroups.flatMap(([, ids]) => ids));

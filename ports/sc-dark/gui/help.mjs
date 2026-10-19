@@ -18,7 +18,7 @@ export function renderTopic(container, data) {
 
 export function renderGuide(container, openTopic) {
     container.replaceChildren();
-    container.append(element('p', 'This guide explains the effect and its controls. Select a ? button for information about a control.', 'help-lead'));
+    container.append(element('p', 'This guide explains the effect and its controls. Small ? buttons beside processing settings open the same help.', 'help-lead'));
     const directions = element('div', '', 'help-directions');
     for (const [name, text, className] of [['Downward', 'Decreases loud detail.', 'down'], ['Upward', 'Increases quiet detail.', 'up']]) {
         const card = element('div', '', className); card.append(element('strong', name), element('p', text)); directions.append(card);

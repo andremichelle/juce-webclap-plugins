@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { mkdirSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import {helpFor} from './gui/help-content.mjs';
+import {helpFor, hasInlineHelp} from './gui/help-content.mjs';
 
 const require = createRequire(import.meta.url);
 const { chromium } = require(process.env.PLAYWRIGHT_MODULE ?? 'playwright');
@@ -21,6 +21,26 @@ try {
     page.setDefaultTimeout(12000);
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
+    const checkPinnedGraph = async frame => {
+        const previous = await frame.evaluate(() => {
+            const main = document.querySelector('main'), details = document.querySelector('#curve-details');
+            const previous = {scroll: main.scrollTop, open: details.open}; details.open = true;
+            main.scrollTop = main.scrollHeight; return previous;
+        });
+        await frame.waitForTimeout(150);
+        const geometry = await frame.evaluate(() => {
+            const main = document.querySelector('main'), analyzer = document.querySelector('.analyzer');
+            const viewport = main.getBoundingClientRect(), graph = analyzer.getBoundingClientRect();
+            return {scroll: main.scrollTop, top: graph.top, bottom: graph.bottom, mainTop: viewport.top, mainBottom: viewport.bottom};
+        });
+        assert(geometry.scroll > 100, 'Test must scroll past the curve-point section');
+        assert(Math.abs(geometry.top - geometry.mainTop) <= 1 && geometry.bottom < geometry.mainBottom,
+            `Graph must remain visible above the controls: ${JSON.stringify(geometry)}`);
+        await frame.evaluate(previous => {
+            document.querySelector('#curve-details').open = previous.open;
+            document.querySelector('main').scrollTop = previous.scroll;
+        }, previous);
+    };
     const open = async () => {
         await page.goto(process.env.OPENDAW_URL ?? 'http://localhost:8084/');
         const project = page.getByText('SC Dark browser test', {exact: true});
@@ -54,43 +74,56 @@ try {
     await page.waitForTimeout(800);
     let ui = await openUI();
     const helpValues = await ui.evaluate(() => window.latestGraphState.params.map(({id, value}) => [id, value]));
-    assert.equal(await ui.locator('.control .help-button').count(), 47);
+    const inlineValues = helpValues.filter(([id]) => hasInlineHelp(id));
+    assert.equal(inlineValues.length, 44);
+    assert.equal(await ui.locator('.control .help-button').count(), 44);
+    assert.equal(await ui.locator('header .help-button, .presets .help-button, .legend .help-button').count(), 0);
+    for (const id of ['output', 'bypass', 'dry_wet']) assert.equal(await ui.locator(`button[data-help="${id}"]`).count(), 0);
     const helpStyle = await ui.locator('.control-label').first().evaluate(element => {
         const label = getComputedStyle(element.querySelector('label')), button = element.querySelector('button'), help = getComputedStyle(button);
         return {labelFont: [label.fontFamily, label.fontSize, label.fontWeight], helpFont: [help.fontFamily, help.fontSize, help.fontWeight],
             border: help.borderTopWidth, background: help.backgroundColor, width: button.offsetWidth, height: button.offsetHeight};
     });
-    assert.deepEqual(helpStyle.helpFont, helpStyle.labelFont, 'Help glyph must match the control-label font');
-    assert.equal(helpStyle.border, '0px'); assert.equal(helpStyle.background, 'rgba(0, 0, 0, 0)');
-    assert(helpStyle.width >= 24 && helpStyle.height >= 24, 'Small visual glyph must retain a usable click target');
+    assert.equal(helpStyle.helpFont[0], helpStyle.labelFont[0], 'Help button must keep the control-label font family');
+    assert(parseFloat(helpStyle.border) >= 1 && helpStyle.background !== 'rgba(0, 0, 0, 0)', 'Help must look like a button before hover');
+    assert(helpStyle.width >= 24 && helpStyle.height >= 24, 'Help button must retain a usable click target');
+    const actionWidths = await ui.locator('#actions > button').evaluateAll(buttons => buttons.map(button => button.getBoundingClientRect().width));
+    assert(Math.abs(actionWidths[0] - actionWidths[1]) < 1, 'Listening action buttons must have equal widths');
+    const arrow = await ui.locator('#preset-select').evaluate(element => {
+        const css = getComputedStyle(element); return {appearance: css.appearance, image: css.backgroundImage, position: css.backgroundPosition, padding: parseFloat(css.paddingRight)};
+    });
+    assert.equal(arrow.appearance, 'none'); assert(arrow.image.includes('data:image/svg+xml'));
+    assert(arrow.position.includes('10px') && arrow.padding >= 32, 'Dropdown arrow must have an inset and separate text space');
+    assert.equal(await ui.locator('.badge').textContent(), 'WebCLAP version');
+    await checkPinnedGraph(ui);
     await page.screenshot({path: `${results}/compact-help.png`});
     await ui.locator('#curve-details summary').click();
-    for (const [id] of helpValues) {
+    for (const [id] of inlineValues) {
         const button = ui.locator(`.control .help-button[data-help="${id}"]`);
         await button.focus(); await button.press('Enter');
         await ui.locator('#help-dialog').waitFor({state: 'visible'});
         assert.equal(await ui.locator('#help-title').innerText(), helpFor(id).title);
         assert((await ui.locator('#help-body').innerText()).includes(helpFor(id).meaning));
-        if (id === helpValues[0][0]) {
+        if (id === inlineValues[0][0]) {
             await ui.locator('#help-close').focus(); await page.keyboard.press('Shift+Tab');
             assert(await ui.evaluate(() => document.querySelector('#help-dialog').contains(document.activeElement)), 'Keyboard focus must stay in the help dialog');
             await page.keyboard.press('Tab');
             assert(await ui.locator('#help-close').evaluate(element => document.activeElement === element), 'Tab must wrap to the close button, not change the Studio screen');
             await page.keyboard.press('Space');
-        } else if (id === helpValues[1][0]) {
+        } else if (id === inlineValues[1][0]) {
             await page.keyboard.press('Escape');
         } else await ui.getByRole('button', {name: 'Close help', exact: true}).click();
         await ui.locator('#help-dialog').waitFor({state: 'hidden'});
         assert(await button.evaluate(element => document.activeElement === element), 'Closing help must return focus to its help button');
     }
     await ui.locator('#curve-details summary').click();
-    for (const id of ['delta', 'match', 'graph', 'presets', 'preset-save', 'preset-export', 'preset-import', 'preset-delete']) {
-        await ui.locator(`button[data-help="${id}"]`).click();
-        assert.equal(await ui.locator('#help-title').innerText(), helpFor(id).title);
-        await ui.getByRole('button', {name: 'Close help', exact: true}).click();
-    }
     await ui.getByRole('button', {name: 'About / Help', exact: true}).click();
     await ui.locator('#help-body').getByRole('heading', {name: 'What is SC Dark?', exact: true}).waitFor();
+    for (const id of ['output', 'bypass', 'dry_wet', 'delta', 'match', 'graph', 'presets', 'preset-save', 'preset-export', 'preset-import', 'preset-delete']) {
+        await ui.locator('#help-body').getByRole('button', {name: helpFor(id).title, exact: true}).click();
+        assert.equal(await ui.locator('#help-title').innerText(), helpFor(id).title);
+        await ui.getByRole('button', {name: 'Beginner guide', exact: true}).click();
+    }
     await ui.locator('#help-body').getByRole('button', {name: 'Smoothing', exact: true}).click();
     assert.equal(await ui.locator('#help-title').innerText(), 'Smoothing');
     await ui.getByRole('button', {name: 'Beginner guide', exact: true}).click();
@@ -118,7 +151,19 @@ try {
     await page.screenshot({path: `${results}/setting-help.png`});
     await ui.getByRole('button', {name: 'Close help', exact: true}).click();
     assert.deepEqual(await ui.evaluate(() => window.latestGraphState.params.map(({id, value}) => [id, value])), helpValues, 'Reading help must not change any settings');
-    console.log('PASS all 47 setting explanations, action help, keyboard focus/Escape, beginner guide, phone-width layout and offline standalone guide; parameters unchanged');
+    const [license] = await Promise.all([context.waitForEvent('page'), ui.getByRole('link', {name: /^GPL-3.0-or-later/}).click()]);
+    license.on('pageerror', error => errors.push(error.message));
+    await license.getByRole('heading', {name: 'License and credits', exact: true}).waitFor();
+    assert(license.url().endsWith('/gui/license.html'), 'Footer must open a supported HTML resource, not extensionless LICENSE');
+    assert((await license.reload()).ok());
+    assert((await license.locator('.license-text').first().innerText()).includes('RealFFT'));
+    assert((await license.locator('.license-text').nth(1).innerText()).includes('GNU GENERAL PUBLIC LICENSE'));
+    try {
+        await context.setOffline(true); await license.reload();
+        await license.getByRole('heading', {name: 'License and credits', exact: true}).waitFor();
+    } finally { await context.setOffline(false); }
+    await license.close(); await page.bringToFront();
+    console.log('PASS selective help buttons, all explanations through guide, keyboard focus/Escape, equal actions, dropdown spacing, pinned graph, offline guide and license page; parameters unchanged');
     assert.notEqual(await ui.locator('#p-stft_window').inputValue(), '', 'FFT window dropdown must show a selected option');
     const set = async (name, text, expected) => {
         const input = ui.getByRole('textbox', {name: `${name} exact value`, exact: true});
@@ -257,6 +302,10 @@ try {
     const narrow = await ui.evaluate(() => ({width: innerWidth, scrollWidth: document.documentElement.scrollWidth,
         height: innerHeight, footer: document.querySelector('footer').getBoundingClientRect().bottom}));
     assert(narrow.scrollWidth <= narrow.width && narrow.footer <= narrow.height);
+    await checkPinnedGraph(ui);
+    const narrowWidths = await ui.locator('#actions > button').evaluateAll(buttons => buttons.map(button => button.getBoundingClientRect().width));
+    assert(Math.abs(narrowWidths[0] - narrowWidths[1]) < 1, 'Stacked listening buttons must also have equal widths');
+    await popup.screenshot({path: `${results}/review-narrow.png`});
     await ui.locator('[data-point="8"] input[type=checkbox]').uncheck();
     await popup.locator('div:has(> div.body > iframe[src*="wclap-frame"]) > header [data-class=button] label').first().click();
     await page.waitForTimeout(1000); ui = page.frames().find(frame => frame.url().endsWith('/gui/index.html'));

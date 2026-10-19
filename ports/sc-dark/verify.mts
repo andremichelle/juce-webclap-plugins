@@ -23,6 +23,11 @@ for (let offset = 0; offset + 512 <= archive.length && archive[offset] !== 0;) {
 }
 for (const path of ['module.wasm', 'gui/index.html', 'gui/app.js', 'gui/style.css', 'gui/help.mjs', 'gui/help-content.mjs', 'gui/guide.html', 'gui/guide.mjs', 'README.md', 'DEVELOPMENT.md', 'WRITING.md', 'LICENSE', 'NOTICES.md', 'licenses/NIH-plug-ISC.txt', 'licenses/dependencies.json', 'licenses/Rust-library.html', 'source.json']) assert(files.some(file => file.path === path), `Bundle missing ${path}`);
 const bundledText = path => new TextDecoder().decode(files.find(file => file.path === path)!.bytes);
+assert(files.some(file => file.path === 'gui/license.html'), 'License page must be an HTML resource in the GUI directory');
+assert(bundledText('gui/index.html').includes('href="./license.html"'));
+assert(!bundledText('gui/index.html').includes('href="../LICENSE"'));
+assert(bundledText('gui/license.html').includes('GNU GENERAL PUBLIC LICENSE'));
+assert(bundledText('gui/license.html').includes('ISC License'));
 const provenance = JSON.parse(bundledText('source.json'));
 assert.equal(provenance.upstreamRevision, 'cc990a190545c515b590b05d5e0f4cdcae175b5b');
 assert.equal(provenance.license, 'GPL-3.0-or-later');

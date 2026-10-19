@@ -25,11 +25,14 @@ Build the archive first with `scripts/build-sc-dark.sh`. See [Development](DEVEL
 
 ## Read the help
 
-- Select **?** beside a control for its purpose, instructions, and important limits.
+- Select a **?** button beside a processing setting for its purpose, instructions, and important limits.
 - Select **About / Help** for the beginner guide.
 - Select **Open guide in a tab** for a separate guide page.
 
 The help covers all 47 parameters. It also explains the graph, listening controls, and preset commands. Help does not change control values.
+Preset management, utility actions, Bypass, Mix, and Output Gain have no inline help buttons. Their explanations remain in **About / Help**.
+The graph stays visible while you scroll through processing controls.
+The footer link opens the bundled license and credits page.
 
 The guide works without an internet connection after the browser has loaded the plugin files. It does not require an account.
 
