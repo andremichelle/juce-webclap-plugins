@@ -25,7 +25,7 @@ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the license
 | Component | In | Copyright | License |
 |---|---|---|---|
 | [Six Sines](https://github.com/baconpaul/six-sines), incl. factory patches and themes | both | Paul Walker and various authors | MIT |
-| WebCLAP port ([juce-webclap-plugins](https://github.com/andremichelle/juce-webclap-plugins)) | both | André Michelle | MIT |
+| WebCLAP port ([open-webclap](https://github.com/andremichelle/open-webclap)) | both | André Michelle | MIT |
 | [sst-basic-blocks](https://github.com/surge-synthesizer/sst-basic-blocks) | both | Surge Synth Team | GPL-3.0 |
 | [sst-filters](https://github.com/surge-synthesizer/sst-filters) | both | Surge Synth Team | GPL-3.0 |
 | [sst-voicemanager](https://github.com/surge-synthesizer/sst-voicemanager) | both | 2023, Paul Walker and others | MIT |

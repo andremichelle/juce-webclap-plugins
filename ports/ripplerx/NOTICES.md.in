@@ -25,7 +25,7 @@ RipplerX is a port of tilr's Rippler2 JSFX, which builds on Saike's [Partials](h
 |---|---|---|---|
 | [RipplerX](https://github.com/tiagolr/ripplerx), incl. presets, images and mallet samples | both | 2025 tilr | GPL-3.0 |
 | Limiter in RipplerX (port of the FairlyChildish limiter JSFX) | both | 2006, Thomas Scott Stillwell | BSD-3-Clause style |
-| WebCLAP port ([juce-webclap-plugins](https://github.com/andremichelle/juce-webclap-plugins)) | both | André Michelle | MIT |
+| WebCLAP port ([open-webclap](https://github.com/andremichelle/open-webclap)) | both | André Michelle | MIT |
 | [JUCE](https://juce.com) | both | Raw Material Software Limited | AGPL-3.0 |
 | [MTS-ESP client](https://github.com/ODDSound/MTS-ESP) | both | 2021 ODDSound Ltd. | 0BSD |
 | [CLAP](https://github.com/free-audio/clap) | module | 2021 Alexandre Bique | MIT |
