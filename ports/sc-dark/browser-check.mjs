@@ -80,12 +80,16 @@ try {
     assert.equal(await ui.locator('header .help-button, .presets .help-button, .legend .help-button').count(), 0);
     for (const id of ['output', 'bypass', 'dry_wet']) assert.equal(await ui.locator(`button[data-help="${id}"]`).count(), 0);
     const helpStyle = await ui.locator('.control-label').first().evaluate(element => {
-        const label = getComputedStyle(element.querySelector('label')), button = element.querySelector('button'), help = getComputedStyle(button);
+        const label = getComputedStyle(element.querySelector('label')), button = element.querySelector('button'), help = getComputedStyle(button), face = getComputedStyle(button, '::before');
         return {labelFont: [label.fontFamily, label.fontSize, label.fontWeight], helpFont: [help.fontFamily, help.fontSize, help.fontWeight],
-            border: help.borderTopWidth, background: help.backgroundColor, width: button.offsetWidth, height: button.offsetHeight};
+            face: {border: face.borderTopWidth, background: face.backgroundColor, width: parseFloat(face.width), height: parseFloat(face.height)},
+            color: help.color, width: button.offsetWidth, height: button.offsetHeight};
     });
     assert.equal(helpStyle.helpFont[0], helpStyle.labelFont[0], 'Help button must keep the control-label font family');
-    assert(parseFloat(helpStyle.border) >= 1 && helpStyle.background !== 'rgba(0, 0, 0, 0)', 'Help must look like a button before hover');
+    assert(parseFloat(helpStyle.face.border) >= 1 && helpStyle.face.background !== 'rgba(0, 0, 0, 0)', 'Small help face must retain a subtle button outline before hover');
+    assert(helpStyle.face.width <= 16 && helpStyle.face.height <= 16, 'Visible help face must stay smaller than the click target');
+    assert.equal(helpStyle.helpFont[1], '11px'); assert.equal(helpStyle.helpFont[2], '400');
+    assert.equal(helpStyle.color, 'rgb(163, 169, 171)', 'Help glyph must stay muted rather than bright white');
     assert(helpStyle.width >= 24 && helpStyle.height >= 24, 'Help button must retain a usable click target');
     const actionWidths = await ui.locator('#actions > button').evaluateAll(buttons => buttons.map(button => button.getBoundingClientRect().width));
     assert(Math.abs(actionWidths[0] - actionWidths[1]) < 1, 'Listening action buttons must have equal widths');
