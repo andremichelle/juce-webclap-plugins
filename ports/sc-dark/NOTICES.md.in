@@ -1,0 +1,32 @@
+# Polarity SC Dark for WebCLAP
+
+This is an experimental browser port. It is not an official Polarity release.
+
+- Original plugin: https://github.com/polarity/plugin.nih.polarity-sc-dark
+- Original revision: cc990a190545c515b590b05d5e0f4cdcae175b5b (version 0.5.4).
+- This port and its build recipe: @SOURCE_URL@
+- Build command: `scripts/build-sc-dark.sh`.
+
+## License
+
+The SC Dark plugin and this port use GPL-3.0-or-later. See `LICENSE`.
+The original authors are Robbert van der Helm and Robert Polarity Agthe.
+
+The Rust framework is NIH-plug, licensed under ISC. See `licenses/NIH-plug-ISC.txt`.
+This port does not link JUCE or replace the repository's MIT license.
+The browser interface uses system fonts. It does not bundle external fonts or images.
+
+The accompanying source archive contains the pinned upstream source, its Cargo.lock,
+the patch, browser interface, build scripts, help, and tests.
+Cargo.lock identifies the Rust dependency versions and Git revisions.
+Cargo obtains those dependencies from their recorded sources during a build.
+`licenses/dependencies.json` records the plugin dependency graph, including build and test dependencies.
+The matching license texts are in `licenses/dependencies/`.
+RealFFT 3.5.0 declares MIT but contains no license text in its package or recorded upstream revision.
+Its original Cargo.toml and README are included as evidence. Review this omission before public binary distribution.
+Rust library notices and license texts are in `licenses/Rust-library.html` and `licenses/rust/`.
+
+The original compression and FFT algorithms remain unchanged.
+The port replaces the desktop interface and adds WebCLAP glue, presets, and help.
+
+This software has no warranty. See the license for details.
