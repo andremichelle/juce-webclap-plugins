@@ -179,6 +179,17 @@ DEPS += [
                              "libs/filesystem/"))),
 ]
 
+# DPF ports (ports/kars, ports/nekobi, ...): DISTRHO plugins built DSP-only through DPF's own CLAP wrapper. DPF is
+# the pin of its main at the time of writing (only distrho/, which has the CLAP wrapper and its headers).
+DEPS += [
+    ("DPF", "DISTRHO/DPF", "4238e1c7f0351bbe488d79f0899c540543ac7583",
+     lambda p: p.startswith("distrho/") or p == "LICENSE"),
+    ("Kars", "DISTRHO/Kars", "769b1a3193d7f1440079f803dc92e89b8ad56742",
+     lambda p: p.startswith("plugins/Kars/") and p.endswith((".cpp", ".hpp", ".h")) or p == "LICENSE"),
+    ("Nekobi", "DISTRHO/Nekobi", "276f0c469ac5df04dbfc1265370adc86d38362f7",
+     lambda p: p.startswith("plugins/Nekobi/") and p.endswith((".cpp", ".hpp", ".h", ".c")) or p == "LICENSE"),
+]
+
 FONT_PACKAGE ="https://registry.npmjs.org/dejavu-fonts-ttf/-/dejavu-fonts-ttf-2.37.3.tgz"
 FONT_FILES = ["package/ttf/DejaVuSans.ttf", "package/ttf/DejaVuSans-Bold.ttf", "package/LICENSE"]
 
