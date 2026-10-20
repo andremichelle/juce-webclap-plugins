@@ -1,5 +1,6 @@
-# Airwindows Consolidated as a WebCLAP bundle: module.wasm (DSP, CLAP entry) and ui/ui.wasm (the editor). Configure
-# with emcmake, see scripts/build-airwindows.sh. The bundle lands in web/airwindows.wclap, next to the test host page.
+# Airwindows Basics as a WebCLAP bundle: Airwindows Consolidated with the effects of its Basic collection only.
+# module.wasm (DSP, CLAP entry) and ui/ui.wasm (the editor). Configure with emcmake, see scripts/build-airwindows.sh.
+# The bundle lands in web/airwindows.wclap, next to the test host page.
 
 cmake_minimum_required(VERSION 3.20)
 project(airwindows-webclap LANGUAGES C CXX)
@@ -26,8 +27,8 @@ set(AW_COMMIT "d8fe301")
 # PluginHostType, the linker keeps what is used (as in the RipplerX and Surge XT ports).
 
 set(JUCE_WEBCLAP_PLUGIN_DEFINITIONS
-    JucePlugin_Name="Airwindows Consolidated"
-    JucePlugin_Desc="Airwindows Consolidated"
+    JucePlugin_Name="Airwindows Basics"
+    JucePlugin_Desc="Airwindows Basics"
     JucePlugin_Manufacturer="Airwindows"
     JucePlugin_VersionString="${AW_VERSION}"
     JucePlugin_IsSynth=0
@@ -38,13 +39,25 @@ set(JUCE_WEBCLAP_PLUGIN_DEFINITIONS
 include("${KIT_ROOT}/modules/juce_webclap/juce_webclap.cmake")
 
 # ---------------------------------------------------------------------------------------------------------------
+# The collection: upstream's registry and source list cut down to the effects tagged Basic (collection.py)
+
+set(AW_COLLECTION "Basic")
+set(GENERATED "${CMAKE_CURRENT_BINARY_DIR}/generated")
+
+execute_process(
+    COMMAND python3 "${CMAKE_CURRENT_LIST_DIR}/collection.py" "${AW}" "${AW_COLLECTION}" "${GENERATED}/registry"
+    COMMAND_ERROR_IS_FATAL ANY)
+include("${GENERATED}/registry/collection.cmake")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_LIST_DIR}/collection.py" "${AW}/src/ModuleAdd.h" "${AW}/src/AirwinRegistry.cpp")
+
+# ---------------------------------------------------------------------------------------------------------------
 # Resources, as upstream embeds them with CMakeRC: the effects' documentation (shown by the editor) and the
 # editor's fonts and icons. The DSP module gets an empty documentation library, nothing there reads it.
 
 include("${AW}/cmake/CmakeRC.cmake")
 
-file(GLOB AW_DOCS "${AW}/res/awpdoc/*.txt")
-cmrc_add_resource_library(awdoc_resources WHENCE "${AW}" ${AW_DOCS})
+cmrc_add_resource_library(awdoc_resources WHENCE "${AW}" ${AW_COLLECTION_DOCS})
 cmrc_add_resource_library(awdoc_resources_empty NAMESPACE awdoc_resources)
 
 file(GLOB AW_EDITOR_RESOURCES "${AW}/res/*.ttf" "${AW}/res/clipper.svg" "${AW}/res/mono.svg" "${AW}/res/stereo.svg")
@@ -55,7 +68,6 @@ foreach(target awdoc_resources awdoc_resources_empty awconsolidated_resources)
 endforeach()
 
 set(WEB_FONT_FILES "${EXT}/fonts/DejaVuSans.ttf" "${EXT}/fonts/DejaVuSans-Bold.ttf")
-set(GENERATED "${CMAKE_CURRENT_BINARY_DIR}/generated")
 
 add_custom_command(
     OUTPUT "${GENERATED}/WebFonts.h" "${GENERATED}/WebFonts.cpp"
@@ -64,16 +76,12 @@ add_custom_command(
     VERBATIM)
 
 # ---------------------------------------------------------------------------------------------------------------
-# The effects, upstream's airwin-registry from its generated source list (one patch, see below), compiled once for
-# both modules
-
-include("${AW}/src/autogen_airwin/CMakeLists.txt")
-list(TRANSFORM AIRWIN_SOURCES PREPEND "${AW}/")
+# The effects, upstream's airwin-registry with the collection's registry and sources, compiled once for both modules
 
 add_library(airwin-registry STATIC
-    "${AW}/src/AirwinRegistry.cpp"
+    "${GENERATED}/registry/AirwinRegistry.cpp"
     "${AW}/src/airwin_consolidated_base.cpp"
-    ${AIRWIN_SOURCES})
+    ${AW_COLLECTION_SOURCES})
 
 target_include_directories(airwin-registry PUBLIC "${AW}/src")
 target_compile_definitions(airwin-registry PRIVATE _USE_MATH_DEFINES)

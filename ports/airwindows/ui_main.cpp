@@ -1,5 +1,5 @@
 /*
-    Airwindows Consolidated editor as ui.wasm.
+    Airwindows Basics: Airwindows Consolidated's editor as ui.wasm.
 
     The stand-in processor is upstream's own AWConsolidatedAudioProcessor, never processing audio, as in the OB-Xf
     port. Its ten effect parameters, bypass, levels and mono behaviour cross over as parameters, the rest (which

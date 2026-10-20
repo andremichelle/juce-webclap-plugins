@@ -65,10 +65,10 @@ export const Plugins: ReadonlyArray<PluginEntry> = [
         license: "GPL-3.0-or-later"
     },
     {
-        id: "airwindows", name: "Airwindows Consolidated", kind: "audio-fx",
-        description: "Every Airwindows effect in one plugin: reverbs, delays, saturation, consoles, filters and more",
-        uuid: "00000000-0000-4000-8000-000000000000", clapId: "com.airwindows.consolidated",
+        id: "airwindows", name: "Airwindows Basics", kind: "audio-fx",
+        description: "The 39 basic Airwindows effects in one plugin: reverbs, EQs, filters, dynamics, tape, tube and more",
+        uuid: "00000000-0000-4000-8000-000000000000", clapId: "com.airwindows.consolidated.basics",
         archive: "build/airwindows/airwindows.wclap.tar.gz", build: "scripts/build-airwindows.sh",
-        credit: "https://github.com/baconpaul/airwin2rack", source: port("airwindows"), license: "MIT"
+        credit: "https://github.com/baconpaul/airwin2rack", source: port("airwindows"), license: "MIT (AGPL-3.0 as built)"
     }
 ]

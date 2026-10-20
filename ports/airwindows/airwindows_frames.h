@@ -1,5 +1,5 @@
 /*
-    Airwindows Consolidated's port frames (juce_webclap_protocol.h, firstPluginType and up). Everything else is the
+    Airwindows Basics' port frames (juce_webclap_protocol.h, firstPluginType and up). Everything else is the
     kit's generic path: parameters and state.
 
         effect  UI -> DSP   UTF-8 name of the effect the editor picked (AirwinRegistry::nameToIndex). The effect is

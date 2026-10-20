@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the Airwindows Consolidated WebCLAP bundle into build/airwindows/web/airwindows.wclap, next to the test
+# Build the Airwindows Basics WebCLAP bundle into build/airwindows/web/airwindows.wclap, next to the test
 # host. Needs Emscripten (emsdk) and the deps from fetch-deps.py.
 set -euo pipefail
 

@@ -1,6 +1,6 @@
 /*
-    Airwindows Consolidated as module.wasm: the processor, unchanged, wrapped by juce_webclap_clap.cpp. No editor
-    code.
+    Airwindows Basics as module.wasm: Airwindows Consolidated's processor, unchanged, wrapped by
+    juce_webclap_clap.cpp, with the effects of the Basic collection (collection.py). No editor code.
 
     AWConsolidatedProcessor.cpp is compiled with AWCO_HEADLESS (patches/airwindows-headless.patch), which leaves out
     the editor. The processor needs JUCE's GUI modules all the same (its headers use Colour and PluginHostType), so
@@ -46,22 +46,22 @@ std::unique_ptr<juce::webclap::PageExtension> juce::webclap::createPageExtension
 
 const juce::webclap::ClapPluginInfo& juce::webclap::getClapPluginInfo()
 {
-    static const char* const features[] = { CLAP_PLUGIN_FEATURE_AUDIO_EFFECT, CLAP_PLUGIN_FEATURE_FILTER,
-                                            CLAP_PLUGIN_FEATURE_PHASER, "rotary speaker",
-                                            CLAP_PLUGIN_FEATURE_EQUALIZER, CLAP_PLUGIN_FEATURE_GRANULAR,
-                                            CLAP_PLUGIN_FEATURE_FREQUENCY_SHIFTER, CLAP_PLUGIN_FEATURE_DISTORTION,
-                                            CLAP_PLUGIN_FEATURE_FLANGER, CLAP_PLUGIN_FEATURE_CHORUS,
-                                            CLAP_PLUGIN_FEATURE_DELAY, CLAP_PLUGIN_FEATURE_REVERB,
-                                            CLAP_PLUGIN_FEATURE_MULTI_EFFECTS, CLAP_PLUGIN_FEATURE_STEREO,
-                                            "free and open source", nullptr };
+    // what the Basic collection has in it
+    static const char* const features[] = { CLAP_PLUGIN_FEATURE_AUDIO_EFFECT, CLAP_PLUGIN_FEATURE_MULTI_EFFECTS,
+                                            CLAP_PLUGIN_FEATURE_REVERB, CLAP_PLUGIN_FEATURE_EQUALIZER,
+                                            CLAP_PLUGIN_FEATURE_FILTER, CLAP_PLUGIN_FEATURE_COMPRESSOR,
+                                            CLAP_PLUGIN_FEATURE_GATE, CLAP_PLUGIN_FEATURE_DISTORTION,
+                                            CLAP_PLUGIN_FEATURE_TREMOLO, CLAP_PLUGIN_FEATURE_CHORUS,
+                                            CLAP_PLUGIN_FEATURE_FLANGER, CLAP_PLUGIN_FEATURE_UTILITY,
+                                            CLAP_PLUGIN_FEATURE_STEREO, "free and open source", nullptr };
 
     static const ClapPluginInfo info {
-        "com.airwindows.consolidated", // upstream's CLAP id
-        "Airwindows Consolidated",
+        "com.airwindows.consolidated.basics", // upstream's CLAP id, marked as the cut-down set
+        "Airwindows Basics",
         "Airwindows",
         "https://github.com/baconpaul/airwin2rack",
         JucePlugin_VersionString,
-        "All the Airwindows effects in one plugin, the editor runs in the page",
+        "The Basic collection of Airwindows effects in one plugin, the editor runs in the page",
         features,
         "/ui/index.html",
         600, // the editor at 100 % zoom with its documentation shown (AWConsolidatedEditor::baseWidth/baseHeight)

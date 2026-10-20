@@ -52,7 +52,7 @@ export const ParameterList = ({lifecycle, session, filter, count}: Construct) =>
             timer = window.setTimeout(() => row.classList.remove("flash"), 300)
         }))
         const entry = {element: row, text: parameter.name.toLowerCase()}
-        // a rescan can rename it (Airwindows Consolidated's knobs belong to the loaded effect)
+        // a rescan can rename it (Airwindows Basics' knobs belong to the loaded effect)
         const box = parameter.field.box
         if (box instanceof WclapParameterBox) {
             rowsLifecycle.own(box.label.subscribe(owner => {
