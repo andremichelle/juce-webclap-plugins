@@ -1,7 +1,7 @@
 // juce_webclap test host, audio side: runs a WebCLAP module.wasm in an AudioWorklet.
 //
-// A minimal single-threaded CLAP host, enough to test a port: notes, parameters (in and out), state,
-// clap.gui with the webview API and clap.webview. Calls that CLAP declares main-thread (receive, state,
+// A minimal single-threaded CLAP host, enough to test a port: notes, parameters (in and out), state, audio
+// ports (inputs from the node's inputs), clap.gui with the webview API and clap.webview. Calls that CLAP declares main-thread (receive, state,
 // gui) run here too, between process calls, like in openDAW. Struct offsets are wasm32 (checked against
 // the CLAP headers with emcc).
 
@@ -57,7 +57,8 @@ function trampoline(params, results, fn) {
     return new WebAssembly.Instance(new WebAssembly.Module(bytes), {e: {f: fn}}).exports.f
 }
 
-// WASI preview1: console output, clocks, random. No files.
+// WASI preview1: console output, clocks, random. No files: no preopened directories (Rust's and wasi-libc's
+// startup asks for them until EBADF), every other file call fails.
 function wasiImports(module, memory, log) {
     const view = () => new DataView(memory().buffer)
     const lines = ["", "", ""]
@@ -83,6 +84,8 @@ function wasiImports(module, memory, log) {
             }
             return 0
         },
+        fd_prestat_get: () => 8, // EBADF
+        fd_close: () => 8,
         fd_fdstat_get: (fd, out) => {
             if (fd > 2) return 8
             new Uint8Array(memory().buffer).fill(0, out, out + 24)
@@ -220,6 +223,7 @@ class ClapHost extends AudioWorkletProcessor {
         this.state = extension(EXT.STATE)
         this.gui = extension(EXT.GUI)
         this.webview = extension(EXT.WEBVIEW)
+        this.audioPorts = extension(EXT.AUDIO_PORTS)
 
         this.createProcess()
         if (!this.fn(this.plugin + 16)(this.plugin, sampleRate, 1, QUANTUM)) throw new Error("plugin.activate failed")
@@ -232,7 +236,8 @@ class ClapHost extends AudioWorkletProcessor {
             type: "loaded",
             descriptor: {id, name: this.cstr(this.u32(descriptor + 16)), vendor: this.cstr(this.u32(descriptor + 20)),
                 version: this.cstr(this.u32(descriptor + 36)), features},
-            params: this.paramInfos(), hasGui: !!(this.gui && this.webview), memoryBytes: memory.buffer.byteLength
+            params: this.paramInfos(), hasGui: !!(this.gui && this.webview), memoryBytes: memory.buffer.byteLength,
+            audioInputs: this.inputPorts.map(port => port.info), audioOutputs: this.outputPorts.map(port => port.info)
         })
     }
 
@@ -287,22 +292,49 @@ class ClapHost extends AudioWorkletProcessor {
 
     // A DataView is taken after the allocations it writes into: malloc can grow the memory, which detaches the
     // buffer of every view taken before.
-    createProcess() {
-        this.processPtr = this.alloc(40)
-        this.outputs = [this.alloc(QUANTUM * 4), this.alloc(QUANTUM * 4)]
-        this.inputs = [this.alloc(QUANTUM * 4), this.alloc(QUANTUM * 4)]
-        const outData = this.alloc(8), inData = this.alloc(8)
-        const audioOut = this.alloc(24), audioIn = this.alloc(24)
-        let v = this.view
-        for (const [buffer, data, channels] of [[audioOut, outData, this.outputs], [audioIn, inData, this.inputs]]) {
-            v.setUint32(data, channels[0], true)
-            v.setUint32(data + 4, channels[1], true)
+    // The plugin's audio ports, without clap.audio-ports a stereo output. Effects take their inputs from the
+    // node's inputs, port by port (main first, then sidechains); unconnected inputs are silent.
+    portInfos(isInput) {
+        if (!this.audioPorts) return isInput ? [] : [{name: "Output", channels: 2, main: true}]
+        const count = this.fn(this.audioPorts)(this.plugin, isInput ? 1 : 0)
+        const info = this.alloc(276)
+        const list = []
+        for (let i = 0; i < count; i++) {
+            if (!this.fn(this.audioPorts + 4)(this.plugin, i, isInput ? 1 : 0, info)) continue
+            list.push({name: this.cstr(info + 4), channels: this.u32(info + 264), main: (this.u32(info + 260) & 1) !== 0})
+        }
+        return list
+    }
+
+    // clap_audio_buffer[] for the ports, 24 bytes each, the channels QUANTUM floats each
+    createPorts(infos) {
+        const buffers = this.alloc(Math.max(1, infos.length) * 24)
+        const ports = infos.map(info => {
+            const data = this.alloc(info.channels * 4)
+            const channels = Array.from({length: info.channels}, () => this.alloc(QUANTUM * 4))
+            return {info, data, channels}
+        })
+        const v = this.view
+        ports.forEach(({data, channels}, i) => {
+            const buffer = buffers + i * 24
+            channels.forEach((channel, ch) => v.setUint32(data + ch * 4, channel, true))
             v.setUint32(buffer, data, true)
             v.setUint32(buffer + 4, 0, true)
-            v.setUint32(buffer + 8, 2, true)
+            v.setUint32(buffer + 8, channels.length, true)
             v.setUint32(buffer + 12, 0, true)
             v.setBigUint64(buffer + 16, 0n, true)
-        }
+        })
+        return {buffers, ports}
+    }
+
+    createProcess() {
+        this.processPtr = this.alloc(40)
+        const inputs = this.createPorts(this.portInfos(true))
+        const outputs = this.createPorts(this.portInfos(false))
+        this.inputPorts = inputs.ports
+        this.outputPorts = outputs.ports
+        const audioIn = inputs.buffers, audioOut = outputs.buffers
+        let v = this.view
         this.eventSlots = this.alloc(EVENT_SLOT * MAX_EVENTS)
         this.eventCount = 0
         this.inEvents = this.alloc(12)
@@ -319,7 +351,6 @@ class ClapHost extends AudioWorkletProcessor {
         v.setUint32(this.processPtr + 20, audioOut, true)
         v.setUint32(this.processPtr + 32, this.inEvents, true)
         v.setUint32(this.processPtr + 36, this.outEvents, true)
-        this.audioIn = audioIn
         this.scratch = this.alloc(SCRATCH_BYTES)
         this.textPtr = this.alloc(256)
         this.valuePtr = this.alloc(8)
@@ -470,15 +501,23 @@ class ClapHost extends AudioWorkletProcessor {
 
     // ---------------------------------------------------------------------------------------------------------
 
-    process(_inputs, outputs) {
+    process(inputs, outputs) {
         if (!this.ready) return true
         try {
             const v = this.view
             this.writeEvents()
             v.setBigUint64(this.processPtr, this.steadyTime, true)
             v.setUint32(this.processPtr + 8, QUANTUM, true)
-            v.setUint32(this.processPtr + 24, 0, true) // no audio input: the test host plays instruments
-            v.setUint32(this.processPtr + 28, 1, true)
+            this.inputPorts.forEach((port, k) => {
+                const source = inputs[k]
+                port.channels.forEach((channel, ch) => {
+                    const target = new Float32Array(this.memory.buffer, channel, QUANTUM)
+                    if (source && source.length) target.set(source[Math.min(ch, source.length - 1)])
+                    else target.fill(0)
+                })
+            })
+            v.setUint32(this.processPtr + 24, this.inputPorts.length, true)
+            v.setUint32(this.processPtr + 28, this.outputPorts.length, true)
             this.inProcess = true
             this.fn(this.plugin + 36)(this.plugin, this.processPtr)
             this.inProcess = false
@@ -486,9 +525,9 @@ class ClapHost extends AudioWorkletProcessor {
             this.flushRequested = false
             this.steadyTime += BigInt(QUANTUM)
 
-            const out = outputs[0]
-            for (let ch = 0; ch < out.length; ch++)
-                out[ch].set(new Float32Array(this.memory.buffer, this.outputs[Math.min(ch, 1)], QUANTUM))
+            const out = outputs[0], main = this.outputPorts[0]
+            if (main) for (let ch = 0; ch < out.length; ch++)
+                out[ch].set(new Float32Array(this.memory.buffer, main.channels[Math.min(ch, main.channels.length - 1)], QUANTUM))
 
             if (this.mainThreadRequested && this.honourCallbacks) {
                 this.mainThreadRequested = false
