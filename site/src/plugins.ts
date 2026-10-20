@@ -59,7 +59,7 @@ export const Plugins: ReadonlyArray<PluginEntry> = [
     {
         id: "coopiano", name: "coopiano", kind: "instrument",
         description: "Physically modelled piano: hammer, strings, soundboard, sympathetic resonance and room, no samples",
-        uuid: "00000000-0000-4000-8000-000000000000", clapId: "com.peterc.coopiano",
+        uuid: "bf482395-174e-40e4-86c0-cc4e6fbea568", clapId: "com.peterc.coopiano",
         archive: "build/coopiano/coopiano.wclap.tar.gz", build: "scripts/build-coopiano.sh",
         credit: "https://github.com/peterc/coopiano", source: port("coopiano"), license: "MIT"
     },
