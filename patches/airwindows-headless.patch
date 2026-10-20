@@ -1,0 +1,37 @@
+--- a/src-juce/AWConsolidatedProcessor.cpp
++++ b/src-juce/AWConsolidatedProcessor.cpp
+@@ -1,7 +1,9 @@
+ #include <type_traits>
+ 
+ #include "AWConsolidatedProcessor.h"
++#if !AWCO_HEADLESS
+ #include "AWConsolidatedEditor.h"
++#endif
+ #include "AirwinRegistry.h"
+ 
+ #if LINUX
+@@ -349,15 +351,24 @@
+ }
+ 
+ //==============================================================================
++// AWCO_HEADLESS: a DSP-only build (the editor runs elsewhere, e.g. WebCLAP's split UI)
+ bool AWConsolidatedAudioProcessor::hasEditor() const
+ {
++#if AWCO_HEADLESS
++    return false;
++#else
+     return true; // (change this to false if you choose to not supply an editor)
++#endif
+ }
+ 
+ juce::AudioProcessorEditor *AWConsolidatedAudioProcessor::createEditor()
+ {
++#if AWCO_HEADLESS
++    return nullptr;
++#else
+     rebuildUI = true;
+     return new AWConsolidatedAudioProcessorEditor(*this);
++#endif
+ }
+ 
+ void AWConsolidatedAudioProcessor::parameterValueChanged(int parameterIndex, float newValue)

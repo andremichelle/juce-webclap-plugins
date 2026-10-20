@@ -1,0 +1,58 @@
+# Airwindows Basics for WebCLAP
+
+Airwindows Basics is Airwindows Consolidated by Paul Walker (BaconPaul), which puts the Airwindows effects by Chris
+Johnson in one plugin, ported to WebCLAP with the effects of its Basic collection only. This is not an official
+Airwindows or Airwindows Consolidated release.
+
+- Airwindows Consolidated: https://github.com/baconpaul/airwin2rack (commit d8fe301)
+- Airwindows: https://www.airwindows.com, https://github.com/airwindows/airwindows
+- This port, and the complete source of this bundle: @SOURCE_URL@
+  Build it with `scripts/build-airwindows.sh`, which fetches every dependency below at the commit named here.
+
+## License
+
+The bundle as a whole is licensed under the **GNU Affero General Public License, version 3** (`LICENSE`).
+
+Airwindows Consolidated and the Airwindows effects are MIT (`licenses/MIT-Airwindows-Consolidated.txt`). Both
+modules contain the JUCE framework (the DSP module its GUI-free part), used under the AGPL-3.0, so `module.wasm`
+and `ui/ui.wasm` are AGPL-3.0.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the licenses for details.
+
+## Components
+
+| Component | In | Copyright | License |
+|---|---|---|---|
+| [Airwindows Consolidated](https://github.com/baconpaul/airwin2rack), incl. the effect documentation | both | 2019-2026, Paul Walker, and the authors per its git log | MIT |
+| [Airwindows](https://github.com/airwindows/airwindows) effects (generated into Airwindows Consolidated) | both | Chris Johnson | MIT |
+| [CMakeRC](https://github.com/vector-of-bool/cmrc) (in Airwindows Consolidated) | both | 2017 vector-of-bool | MIT |
+| WebCLAP kit ([open-webclap](https://github.com/andremichelle/open-webclap) `modules/juce_webclap`) | both | André Michelle | MIT |
+| WebCLAP port ([open-webclap](https://github.com/andremichelle/open-webclap) `ports/airwindows`) | both | André Michelle | MIT |
+| [JUCE](https://juce.com) | both | Raw Material Software Limited | AGPL-3.0 |
+| [CLAP](https://github.com/free-audio/clap) | module | 2021 Alexandre Bique | MIT |
+| [Plus Jakarta Sans](https://github.com/tokotype/PlusJakartaSans) font | ui | 2020 The Plus Jakarta Sans Project Authors | OFL-1.1 (`licenses/OFL-PlusJakartaSans.txt`) |
+| [Fira Mono](https://github.com/mozilla/Fira) font | ui | 2012-2015, The Mozilla Foundation and Telefonica S.A. | OFL-1.1 (`licenses/OFL-FiraMono.txt`) |
+| [DejaVu Sans](https://dejavu-fonts.github.io) font | ui | Bitstream, Tavmjong Bah; DejaVu changes public domain | Bitstream Vera (`licenses/DejaVu.txt`) |
+
+@JUCE_BUNDLED@
+
+## License texts
+
+### MIT
+
+Applies to the components marked MIT above, each under its own copyright line.
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+> documentation files (the "Software"), to deal in the Software without restriction, including without limitation
+> the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and
+> to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or substantial portions of
+> the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+> THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+> CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+> IN THE SOFTWARE.

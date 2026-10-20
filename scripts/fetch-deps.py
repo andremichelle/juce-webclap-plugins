@@ -179,6 +179,20 @@ DEPS += [
                              "libs/filesystem/"))),
 ]
 
+
+def airwindows_filter(path):
+    if path.startswith("res/"):
+        return path.startswith("res/awpdoc/") or path.endswith((".ttf", ".svg")) or path == "res/OFL.txt"
+    return (path.startswith(("src/", "src-juce/")) and not path.endswith(".o")
+            or path in ("cmake/CmakeRC.cmake", "LICENSE.md", "README.md"))
+
+
+# Airwindows Consolidated (airwin2rack) at main at the time of writing. The effects are generated into src/, so its
+# airwindows submodule is not needed; JUCE is the shared one, clap-juce-extensions is not needed (the kit wraps it).
+DEPS += [
+    ("airwin2rack", "baconpaul/airwin2rack", "d8fe3010bc6dce91e30ee2f2ef15dd3683533a97", airwindows_filter),
+]
+
 FONT_PACKAGE ="https://registry.npmjs.org/dejavu-fonts-ttf/-/dejavu-fonts-ttf-2.37.3.tgz"
 FONT_FILES = ["package/ttf/DejaVuSans.ttf", "package/ttf/DejaVuSans-Bold.ttf", "package/LICENSE"]
 
@@ -235,7 +249,7 @@ def fetch_fonts():
 
 # patches/<prefix>-*.patch apply to external/<directory>
 PATCH_TARGETS = [("juce-", "JUCE"), ("six-sines-", "six-sines"), ("ripplerx-", "ripplerx"), ("odin2-", "odin2"),
-                 ("surge-", "surge")]
+                 ("surge-", "surge"), ("airwindows-", "airwin2rack")]
 
 
 def apply_patches():

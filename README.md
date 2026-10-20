@@ -29,6 +29,7 @@ plugin gets there depends on what it is written with, so the ports here come fro
 | [Odin 2](https://github.com/TheWaveWarden/odin2) | Polyphonic semi-modular synth: three oscillators, two filters, modulation matrix, effects | JUCE kit: an `AudioProcessor` whose editor edits the patch's non-parameter trees directly; those cross over as tree properties, patch loads as one frame (`ports/odin2/odin2_frames.h`) | GPL-3.0-or-later |
 | [Surge XT](https://github.com/surge-synthesizer/surge) | Hybrid synth: many oscillator, filter and effect types, deep modulation | JUCE kit: an `AudioProcessor` whose editor reaches into the whole engine, so `ui.wasm` runs a second, silent engine as its stand-in. Parameters cross over as usual, patch loads as state, modulation routings as frames (`ports/surge-xt/surge_frames.h`). Without Lua, OSC and MTS-ESP | GPL-3.0-or-later |
 | [Polarity SC Dark](https://github.com/polarity/plugin.nih.polarity-sc-dark) | Spectral compressor with upward and downward compression | Rust/NIH-plug + WASI, with a separate HTML/Canvas interface, presets, draggable curve points, and help ([port guide](ports/sc-dark/README.md)) | GPL-3.0-or-later |
+| [Airwindows Basics](https://github.com/baconpaul/airwin2rack) | The Basic collection of Airwindows Consolidated: 39 Airwindows effects by Chris Johnson in one plugin (reverbs, EQs, filters, dynamics, tape, tube and more), collected by Paul Walker | JUCE kit: an `AudioProcessor` like OB-Xf, built with the collection's effects only (`ports/airwindows/collection.py`). Which effect is loaded is state, not a parameter: the editor's pick crosses over as a frame (`ports/airwindows/airwindows_frames.h`), and the ten effect parameters are renamed for the host | MIT |
 
 The license column is the plugin's and its port's (`ports/<port>/`). JUCE-built bundles link JUCE, so they ship as
 AGPL-3.0. SC Dark does not link JUCE and uses GPL-3.0-or-later. See [Licenses](#licenses).
@@ -83,6 +84,10 @@ open http://127.0.0.1:8126/
 scripts/build-surge-xt.sh             # and Surge XT
 python3 scripts/serve.py build/surge-xt/web 8127
 open http://127.0.0.1:8127/
+
+scripts/build-airwindows.sh           # and Airwindows Basics
+python3 scripts/serve.py build/airwindows/web 8128
+open http://127.0.0.1:8128/
 ```
 
 A clean OB-Xf build takes about 12 minutes, mostly the large JUCE unity files. `-DOBXF_WEB_PNG_THEME=OFF` (passed to
@@ -161,5 +166,6 @@ it was built from) and the longer texts in `licenses/`, see `ports/<port>/NOTICE
 
 JUCE-built bundles link JUCE, so they are AGPLv3 (or covered by a commercial JUCE license) and also under the port's
 license. JUCE is AGPLv3/commercial, OB-Xf is GPL-3.0-or-later, RipplerX GPL-3.0, Odin 2 GPL-3.0-or-later (its Aldrich
-font OFL-1.1), Surge XT GPL-3.0-or-later, Six Sines MIT (GPL-3.0 as built), the CLAP headers MIT, the DejaVu fonts
-under the Bitstream Vera license; none of them is checked in, `scripts/fetch-deps.py` downloads them.
+font OFL-1.1), Surge XT GPL-3.0-or-later, Six Sines MIT (GPL-3.0 as built), Airwindows Basics MIT (its fonts
+OFL-1.1), the CLAP headers MIT, the DejaVu fonts under the Bitstream Vera license; none of them is checked in,
+`scripts/fetch-deps.py` downloads them.

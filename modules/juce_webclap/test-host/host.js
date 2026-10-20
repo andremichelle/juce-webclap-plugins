@@ -91,7 +91,10 @@ function fromWorklet(m) {
             break
         }
         case "params":
-            for (const p of m.params) updateRow(p.id, p.value, p.text, false)
+            for (const p of m.params) {
+                renameRow(p)
+                updateRow(p.id, p.value, p.text, false)
+            }
             log("out", "params rescan", "host")
             break
         case "valueText": {
@@ -186,14 +189,15 @@ function buildParams(params) {
         const root = document.createElement("div")
         root.className = "param"
         const name = Object.assign(document.createElement("span"), {className: "name", textContent: p.name})
+        const option = Object.assign(document.createElement("option"), {value: String(p.id), textContent: p.name})
         const range = Object.assign(document.createElement("input"), {type: "range", min: p.min, max: p.max,
             step: (p.flags & 1) ? 1 : (p.max - p.min) / 1000, value: p.value})
         const value = Object.assign(document.createElement("span"), {className: "value", textContent: p.text})
         range.addEventListener("input", () => setParam(p.id, Number(range.value)))
         root.append(name, range, value)
         paramsView.append(root)
-        rows.set(p.id, {root, range, value, info: p})
-        select.append(Object.assign(document.createElement("option"), {value: String(p.id), textContent: p.name}))
+        rows.set(p.id, {root, name, range, value, option, info: p})
+        select.append(option)
     }
     const cutoff = params.find(p => /cutoff/i.test(p.name))
     if (cutoff) select.value = String(cutoff.id)
@@ -205,6 +209,15 @@ function setParam(id, value) {
     node.port.postMessage({type: "valueText", id, value})
     const row = rows.get(id)
     if (row) row.range.value = String(value)
+}
+
+// A rescan can rename parameters (Airwindows Consolidated's knobs belong to the loaded effect)
+function renameRow(p) {
+    const row = rows.get(p.id)
+    if (!row || row.info.name === p.name) return
+    row.info = p
+    row.name.textContent = p.name
+    row.option.textContent = p.name
 }
 
 function updateRow(id, value, text, flash) {
