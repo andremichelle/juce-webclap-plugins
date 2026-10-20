@@ -1,0 +1,35 @@
+component
+  display: flex
+  position: relative
+  container-type: inline-size
+  height: 4em
+  user-select: none
+  touch-action: none
+
+  > .white
+    flex: 1
+    background-color: var(--color-gray)
+    border: 1px solid var(--color-black)
+    border-radius: 0 0 3px 3px
+
+    &.down
+      background-color: var(--color-blue)
+
+  > .black
+    width: 0
+    z-index: 1
+    position: relative
+
+    // 60% of a white key, like a piano (--white-keys is set by the component)
+    &:after
+      --width: calc(100cqw / var(--white-keys) * 0.6)
+      content: ""
+      position: absolute
+      left: calc(var(--width) * -0.5)
+      width: var(--width)
+      height: 2.5em
+      background-color: var(--color-header-background)
+      border-radius: 0 0 2px 2px
+
+    &.down:after
+      background-color: var(--color-blue)

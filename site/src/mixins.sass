@@ -1,0 +1,70 @@
+@mixin form-element
+  font: inherit
+  color: var(--color-gray)
+  background-color: rgba(black, 0.08)
+  box-shadow: 0 0 0 1px rgba(white, 0.08)
+  border: none
+  padding: 0.25em 0.5em
+  border-radius: 1px
+
+  &::placeholder
+    font-size: 0.875em
+    opacity: 0.5
+
+  &:focus-visible
+    box-shadow: 0 0 0 1px var(--color-blue)
+
+// A thin range slider: a 2px track filled up to the value (--fill, 0..100%, set by the component) and a small
+// round thumb
+@mixin slider($color: var(--color-blue))
+  appearance: none
+  -webkit-appearance: none
+  height: 0.75em
+  margin: 0
+  background: none
+  cursor: pointer
+
+  &::-webkit-slider-runnable-track
+    height: 2px
+    border-radius: 1px
+    background: linear-gradient(to right, $color var(--fill, 0%), rgba(white, 0.1) var(--fill, 0%))
+
+  &::-moz-range-track
+    height: 2px
+    border-radius: 1px
+    background: linear-gradient(to right, $color var(--fill, 0%), rgba(white, 0.1) var(--fill, 0%))
+
+  &::-webkit-slider-thumb
+    -webkit-appearance: none
+    width: 0.5em
+    height: 0.5em
+    margin-top: calc(1px - 0.25em)
+    border: none
+    border-radius: 50%
+    background-color: var(--color-bright)
+    transition: transform 0.1s
+
+  &::-moz-range-thumb
+    width: 0.5em
+    height: 0.5em
+    border: none
+    border-radius: 50%
+    background-color: var(--color-bright)
+
+  &:hover::-webkit-slider-thumb, &:active::-webkit-slider-thumb
+    transform: scale(1.4)
+
+// A floating panel (menus), as in the studio's mixins
+@mixin floating
+  font-size: 0.75rem
+  font-weight: inherit
+  font-family: inherit
+  display: flex
+  padding: 0.5em 0
+  border: none
+  border-radius: 0.5em
+  color: var(--color-bright)
+  box-shadow: 0 0 0 0.5px rgba(white, 0.1), 0 2em 1.5em 0 rgba(black, 0.3)
+  z-index: 9999
+  backdrop-filter: blur(2px)
+  background-color: color-mix(in srgb, var(--color-panel-background-dark), transparent 5%)

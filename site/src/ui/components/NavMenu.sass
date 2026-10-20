@@ -1,0 +1,98 @@
+@use "@/mixins"
+
+// The button as the studio's framed MenuButton (MenuButton.sass), the menu as its Menu (Menu.sass)
+component
+  --color-active: var(--color)
+
+  position: relative
+
+  > button
+    appearance: none
+    margin: 0
+    padding: 0
+    display: flex
+    place-items: center
+    min-height: 1.5em
+    font: inherit
+    color: var(--color)
+    border-radius: 0.25em
+    border: 0.5px solid var(--color)
+    box-shadow: 0 0 3px -1px var(--color)
+    background: none
+    cursor: pointer
+
+    > label
+      display: flex
+      align-items: center
+      column-gap: 0.25em
+      padding: 0 0.375em 0 0.5em
+      pointer-events: none
+
+      &:after
+        content: "▾"
+
+    &.active
+      color: var(--color-active)
+      border-color: var(--color-active)
+      box-shadow: 0 0 3px -1px var(--color-active)
+
+  > nav.menu
+    @include mixins.floating
+    display: none
+    position: absolute
+    top: calc(100% + 4px)
+    left: 0
+    min-width: 12em
+    flex-direction: column
+
+    > div.container
+      display: flex
+      flex-direction: column
+
+      > div.item
+        flex: 1 0 2.25em
+        display: flex
+
+        > div.header
+          width: 100%
+          display: flex
+          align-items: center
+          padding: 0.5em 0.75em
+          margin: 0 0 0.25em
+          white-space: nowrap
+          color: color-mix(in srgb, var(--color) 75%, transparent)
+          background-color: color-mix(in srgb, var(--color) 5%, transparent)
+
+        > div.default
+          width: 100%
+          display: flex
+          column-gap: 0.25em
+          align-items: center
+          border-radius: 0.25em
+          margin: 0 0.5em
+          padding: 0 0.5em 0 0.25em
+          white-space: nowrap
+          cursor: pointer
+
+          > svg.check-icon
+            visibility: hidden
+            fill: none
+            stroke: currentColor
+            stroke-width: 1.5
+            stroke-linecap: round
+            width: 1em
+            height: 1em
+
+          &.checked > svg.check-icon
+            visibility: visible
+
+          > div.label
+            flex: 1
+            margin: 0 3em 0 0.25em
+
+        &:hover > div.default
+          color: white
+          background-color: var(--color-menu-active)
+
+  &.open > nav.menu
+    display: flex

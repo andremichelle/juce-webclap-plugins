@@ -1,0 +1,19 @@
+component
+  display: flex
+  flex-direction: column
+  row-gap: 2px
+
+  > .track
+    height: 0.25rem
+    border-radius: 1px
+    overflow: hidden
+    background-color: rgba(black, 0.2)
+    box-shadow: 0 0 0 1px rgba(white, 0.04)
+
+    > .bar
+      height: 100%
+      width: 0
+      background-color: var(--color-green)
+
+    &.clip > .bar
+      background-color: var(--color-red)

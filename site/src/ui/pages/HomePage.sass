@@ -1,0 +1,67 @@
+@use "@/colors"
+
+component
+  flex: 1 0 0
+  overflow: hidden auto
+  padding: 2em
+  display: flex
+  flex-direction: column
+  row-gap: 1em
+
+  > h1
+    font-size: 1.5rem
+    color: var(--color-cream)
+
+  > .intro
+    max-width: 48em
+    color: var(--color-gray)
+
+  > .grid
+    display: grid
+    grid-template-columns: repeat(auto-fill, minmax(18em, 1fr))
+    gap: 1em
+
+    > article
+      display: flex
+      flex-direction: column
+      row-gap: 0.75em
+      padding: 1em
+      border-radius: 0.25em
+      @include colors.panel-background
+
+      > header
+        display: flex
+        align-items: baseline
+        column-gap: 0.5em
+
+        > h2
+          font-size: 1.125rem
+          font-weight: 400
+          margin-right: auto
+
+      > p
+        flex: 1
+        font-size: 0.875rem
+        color: var(--color-gray)
+
+      > footer
+        display: flex
+        flex-wrap: wrap
+        column-gap: 1em
+        font-size: 0.75rem
+        color: var(--color-dark)
+
+        > span
+          margin-left: auto
+
+  .kind
+    font-size: 0.625rem
+    text-transform: uppercase
+    letter-spacing: 0.06em
+    color: var(--color-purple)
+
+    &.audio-fx
+      color: var(--color-orange)
+
+  @media (max-width: 600px)
+    padding: 1em

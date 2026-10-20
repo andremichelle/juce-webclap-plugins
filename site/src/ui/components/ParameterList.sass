@@ -1,0 +1,65 @@
+@use "@/mixins"
+
+// One grid for all rows (a row is display: contents), so the columns line up: the names as wide as they need but
+// at most 45% (then cut off), the values at the right, the sliders taking the rest (at least 4em)
+component
+  flex: 1 1 0
+  min-height: 0
+  overflow: auto
+  font-size: 0.625rem
+  display: grid
+  grid-template-columns: fit-content(45%) minmax(4em, 1fr) max-content
+  grid-auto-rows: max-content
+  align-content: start
+  column-gap: 0.75em
+  row-gap: 0.25em
+
+  > .empty
+    grid-column: 1 / -1
+    color: var(--color-dark)
+
+  > .module
+    grid-column: 1 / -1
+    margin: 0.75em 0 0.25em
+    font-size: 0.625rem
+    font-weight: 500
+    text-transform: uppercase
+    letter-spacing: 0.06em
+    color: var(--color-dark)
+
+    &:first-child
+      margin-top: 0
+
+  > .param
+    display: contents
+    color: var(--color-gray)
+
+    &[hidden]
+      display: none
+
+    > .name
+      align-self: center
+      overflow: hidden
+      text-overflow: ellipsis
+      white-space: nowrap
+
+    > input
+      width: 100%
+      min-width: 0
+      align-self: center
+      font-size: 0.75rem
+      @include mixins.slider
+
+    > .value
+      align-self: center
+      text-align: right
+      color: var(--color-dark)
+      overflow: hidden
+      text-overflow: ellipsis
+      white-space: nowrap
+
+    &.gesture > .name
+      color: var(--color-orange)
+
+    &.flash > .value
+      color: var(--color-green)

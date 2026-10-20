@@ -3,3 +3,7 @@
 /build/
 .idea/
 .DS_Store
+
+# The site (site/)
+/site/node_modules/
+/site/dist/

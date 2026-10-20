@@ -1,0 +1,159 @@
+@use "@/colors"
+
+component
+  flex: 1 0 0
+  min-width: 0
+  min-height: 0
+  display: flex
+  flex-direction: column
+
+  // the progress centered: over the whole area while the page loads, over the plugin column while the plugin
+  // starts (the stack is laid out, hidden, under it)
+  .loading
+    display: flex
+    align-items: center
+    justify-content: center
+
+  > .body > .loading
+    flex: 1
+
+  > .body
+    flex: 1 0 0
+    min-height: 0
+    display: flex
+
+    > .message
+      margin: 2em
+      display: flex
+      flex-direction: column
+      row-gap: 0.5em
+      color: var(--color-dark)
+
+      .error
+        color: var(--color-red)
+
+      code
+        color: var(--color-cream)
+
+  .workbench
+    flex: 1
+    min-width: 0
+    min-height: 0
+    display: flex
+    padding: 1em
+
+    > .main
+      position: relative
+      flex: 1 1 auto
+      min-width: 0
+      min-height: 0
+      display: flex
+      flex-direction: column
+      align-items: safe center
+      justify-content: safe center
+
+      > .loading
+        position: absolute
+        inset: 0
+
+      > .leave-presentation
+        display: none
+
+      // presentation mode: this column over the whole window, only the plugin itself (no title bar, no keyboard or
+      // input; computer keys and MIDI still play), scaled to fit (Presentation sets the scale)
+      &.presenting
+        position: fixed
+        inset: 0
+        z-index: 100
+        background-color: var(--color-background)
+
+        > .stack
+          > :not([class^="PluginWindow"]), [class^="PluginWindow"] > .titlebar
+            display: none
+
+        > .leave-presentation
+          display: block
+          position: absolute
+          top: 0.75rem
+          right: 1rem
+          z-index: 1
+          appearance: none
+          padding: 0 0.25em
+          font: 300 1.5rem/1 Rubik, system-ui, sans-serif
+          color: var(--color-dark)
+          background: none
+          border: none
+          cursor: pointer
+
+          &:hover
+            color: var(--color-bright)
+
+      > .stack
+        max-width: 100%
+        min-height: 0
+        display: flex
+        flex-direction: column
+        row-gap: 0.75em
+
+        &.pending
+          visibility: hidden
+
+    > aside
+      flex: 0 100000 400px
+      min-width: 240px
+      max-width: 400px
+      min-height: 0
+      display: flex
+      flex-direction: column
+      row-gap: 0.75em
+
+  .row
+    display: flex
+    flex-wrap: wrap
+    align-items: center
+    gap: 0.5em
+    font-size: 0.75rem
+    color: var(--color-gray)
+
+  .state
+    font-size: 0.75rem
+    font-weight: 500
+    color: var(--color-orange)
+
+    &.ready
+      color: var(--color-green)
+
+    &.failed
+      color: var(--color-red)
+
+  .row.audio
+    flex-wrap: nowrap
+    column-gap: 1em
+
+    > div
+      flex: 1 1 0
+      min-width: 0
+
+  .muted
+    font-size: 0.75rem
+    color: var(--color-dark)
+
+  @media (max-width: 900px)
+    > .body
+      flex: 1 0 auto
+
+    .workbench
+      flex-direction: column
+      row-gap: 0.75em
+
+      > [class^="ColumnResizer"]
+        display: none
+
+      > aside
+        flex: 0 0 auto
+        min-width: 0
+        max-width: none !important
+
+        > section.grow
+          flex: 0 0 auto
+          height: 20em

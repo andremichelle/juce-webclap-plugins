@@ -1,0 +1,78 @@
+@use "@/colors"
+
+component
+  flex: 0 0 auto
+  min-height: 2.5rem
+  padding: 0.25em 1em
+  column-gap: 1.25em
+  display: flex
+  flex-wrap: wrap
+  align-items: center
+  font-size: 0.75rem
+  background-color: var(--color-header-background)
+
+  h5
+    font-size: 0.875rem
+    font-weight: 500
+
+    > a
+      color: var(--color-cream)
+
+  hr
+    min-width: 1px
+    height: 1.25em
+    margin: 0
+    border: none
+    background-color: rgba(white, 0.06)
+
+  nav
+    display: flex
+    column-gap: 1.25em
+
+  // a plugin page's name, id and links in a box of their own
+  > .title
+    display: flex
+    flex-wrap: wrap
+    align-items: baseline
+    column-gap: 1em
+    padding: 0.375em 0.75em
+    border-radius: 0.25em
+    background-color: rgba(white, 0.08)
+
+    &:empty
+      display: none
+
+    h1
+      font-size: 0.875rem
+      font-weight: 400
+      color: var(--color-cream)
+
+    .subtitle, .links
+      color: var(--color-dark)
+
+    .links
+      display: flex
+      column-gap: 1em
+
+  // presentation mode, an icon without a frame
+  button.present
+    appearance: none
+    display: flex
+    padding: 0
+    border: none
+    background: none
+    color: var(--color-dark)
+    cursor: pointer
+
+    > svg
+      width: 1.25rem
+      height: 1.25rem
+
+    &:hover
+      color: var(--color-bright)
+
+  a.github
+    color: var(--color-dark)
+
+    &:hover
+      color: var(--color-bright)

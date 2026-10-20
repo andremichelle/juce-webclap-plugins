@@ -27,7 +27,8 @@ JUCE ports need Emscripten (emsdk, tested with 3.1.51), CMake, Python 3.
 
 SC Dark needs Rust stable with `wasm32-wasip1` and `rust-docs`, Node 23 or later, Python 3, Git, and tar.
 Run `scripts/build-sc-dark.sh --test`. The import archive is `build/sc-dark/polarity-sc-dark.wclap.tar.gz`.
-It does not use the instrument-only test host below; test it as an audio effect in openDAW.
+Try it on its page of the site (see [The site](#the-site)) (with the microphone, an audio file or a test signal), or as an audio effect in
+openDAW.
 
 ```sh
 scripts/build-obxf.sh                 # fetches pinned deps into external/, patches JUCE, builds
@@ -56,6 +57,19 @@ script) drops the 9 MB bitmap theme and keeps only OB-Xf's embedded vector theme
 
 The bundle lands in `build/<port>/web/<port>.wclap` (`module.wasm`, `ui/`), the test host next to it, the archive
 hosts import in `build/<port>/<port>.wclap.tar.gz`. Any port's bundle opens with `?bundle=<dir>`.
+
+## The site
+
+`site/` is the public test page for every plugin, at [webclap.opendaw.studio](https://webclap.opendaw.studio)
+(Vite, the openDAW SDK). Each plugin gets a page at `/<id>` that runs it in openDAW's engine, the bundle openDAW
+hosts: its own window as in the studio, notes from the keyboard and Web MIDI for instruments, and for effects the
+microphone (monitored through the effect), a looped audio file, a test tone or noise. Pushes to `main` that touch
+`site/` deploy it to GitHub Pages; the bundles are not part of the site.
+
+```sh
+cd site && npm install && npm run dev  # http://localhost:8130/, ?local loads build/<port>/*.wclap.tar.gz instead
+npm run build                          # dist/
+```
 
 ## Using the test host
 
