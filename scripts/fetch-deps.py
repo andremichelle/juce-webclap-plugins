@@ -179,6 +179,12 @@ DEPS += [
                              "libs/filesystem/"))),
 ]
 
+# coopiano (Peter Cooper) at main at the time of writing: header-only C++17, no submodules
+DEPS += [
+    ("coopiano", "peterc/coopiano", "bba9e06713552fadf33d93490526ae9c2ab66112",
+     lambda p: p.endswith((".hpp", ".cpp", ".ini")) or p in ("LICENSE", "README.md", "Makefile")),
+]
+
 FONT_PACKAGE ="https://registry.npmjs.org/dejavu-fonts-ttf/-/dejavu-fonts-ttf-2.37.3.tgz"
 FONT_FILES = ["package/ttf/DejaVuSans.ttf", "package/ttf/DejaVuSans-Bold.ttf", "package/LICENSE"]
 
@@ -235,7 +241,7 @@ def fetch_fonts():
 
 # patches/<prefix>-*.patch apply to external/<directory>
 PATCH_TARGETS = [("juce-", "JUCE"), ("six-sines-", "six-sines"), ("ripplerx-", "ripplerx"), ("odin2-", "odin2"),
-                 ("surge-", "surge")]
+                 ("surge-", "surge"), ("coopiano-", "coopiano")]
 
 
 def apply_patches():

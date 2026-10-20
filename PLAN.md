@@ -426,6 +426,62 @@ Stage 2, the editor:
   and scrolls (`juce-8-wasm.patch`, PopupMenu): placed over its parent, it left the other categories unreachable.
   The test host's worklet wrote through DataViews taken before `malloc` calls that grew the memory.
 
+## coopiano findings (2026-10-20)
+
+coopiano (Peter Cooper, MIT) is a physically modelled piano in header-only C++17: hammer, strings, soundboard
+convolution, sympathetic resonance and a room. Its `instrument::Engine` and `piano_host::Adapter` (44.1 kHz inside,
+resampled to 48, 88.2 or 96 kHz) have no threads, files or SDK, so the port is a plain CLAP plugin around them
+(`ports/coopiano/coopiano_clap.cpp`), without JUCE and without an editor: `module.wasm` 0.2 MB, WASI only, the
+archive 0.1 MB, MIT throughout.
+
+- The cost is in the strike. Every note starts from the hammer's contact with the strings, a nonlinear solve at 32x
+  oversampling until the hammer separates: natively up to 3 ms (soft bass) per key and velocity, in WebAssembly
+  over 10 ms, longer than an audio block. Upstream's live host solves it on its MIDI thread, or builds all
+  88 x 127 responses up front (10 s natively, 72 MiB). A WebCLAP plugin has only the audio thread.
+- `patches/coopiano-webclap.patch` makes the solve resumable (`step_contact`, `ContactJob`: the same integration
+  stopped and resumed, bit-identical renders against upstream), lets the strike cache start empty and fill one
+  response at a time in slices, and adds the runtime output gain and reverb mix the parameters need.
+- The wrapper budgets in mode-steps (one string mode by one oversampled step), converted with the speed it measures
+  over 50 ms windows (about 7e5 to 9e5 per ms in WebAssembly on an M1; the worklet's clock may tick in whole
+  milliseconds, so each window changes the estimate by a quarter at most). A note whose response is missing plays
+  at once with the nearest cached velocity of its key (up to 8 steps away) while its own is solved next; without
+  one it waits, a quarter of each block solving for it, and starts a few blocks late, once. The background fill
+  takes a sixth of each block: what notes asked for, then all keys at velocities 64, 32, 96, 16, 48, 80, 112 and 8
+  (5 s on a fast core, half a minute on an efficiency core), so every key has a neighbour within 8 for every
+  velocity; the others are solved when played. A solve's setup (copying the key's strings) gets a block of its
+  own. The log says "background strikes ready" when it is done.
+- The body costs as much as the voices of quiet playing, all the time: 14 % of real time natively in silence, most
+  of it once per 256 samples (soundboard convolution: a 1.5 s tail and four 0.2 s bridge regions, each with a
+  direct 256-tap head; the sympathetic bank's 992 modes per sample). openDAW's meter shows the slowest block per
+  second, so that block read as 60-90 % for one silent instance. The patch now skips silent sympathetic strings,
+  multiplies half the spectrum with vectorizable products, one inverse FFT for both channels, spreads the older
+  partitions over the block and vectorizes the direct heads, and lets the soundboard and the sympathetic bank
+  sleep once their input and state are exactly zero (bit-identical; strings flush below 1e-12 instead of 1e-30,
+  -216 dB, so that comes about 13 s after the last note): silence under 1 %, the same sound to rounding.
+  With the pedal down, released notes keep ringing (126 voices on average in the test): those voices are the cost,
+  two thirds of it in the voices' mode oscillators (already vectorized upstream; their outputs now sum as a tree,
+  about a tenth less). Left to decide: playing keeps solving the exact velocities played (a few ms each, spread at
+  a sixth of a block), which a per-block meter sees; quantizing velocities to steps of 4 would let the background
+  fill cover all of them, and a voice limit or a cull relative to the loudest voice would bound the pedal case.
+- Chrome on an M-series Mac runs a lightly loaded AudioWorklet on an efficiency core: the same `module.wasm` took
+  1.2 ms per block there against 0.16 ms in Node, and Node under `taskpolicy -b` reproduces it. Load moves the
+  thread to a fast core, so playing can read lower than idling. Idle in openDAW's engine now: 0.17 ms per block on
+  the slow core, 0.04 ms on the fast one (Six Sines idling: 0.06 ms).
+- openDAW's DSP meter itself: the worklet has no `performance.now()`, so a worker stamps start and end
+  (`HRClock`) and the reading includes that worker's wake-up, longer when the CPU idles at low clocks: an idle
+  project can read higher than a busy one. The plugin's clock in openDAW is `Date.now()`, whole milliseconds.
+- Parameters: Volume (dB on the engine's calibrated gain, before its soft limiter), Reverb (wet level), Sustain
+  (damper pedal, continuous: openDAW sends notes but no CC64). MIDI note and CC64 work too. State: the three values.
+- Tested in Node with the test host's worklet: the first note 4 blocks late, cached ones in one (the resampler's
+  latency); 60 s of random notes at random velocities, median 11-13 % of real time, 99th percentile about 30 %, no
+  block over the 2.7 ms budget (the first version: 35 %, 65 %, a few blocks up to 6 ms); sustain, volume, state.
+  Mean in silence 1 % (was 15 %), during the first 10 s of filling about 8 %. In the browser: the test host
+  plays, and the site in openDAW's engine shows the output on its meter; with `debug.dspLoadMeasurement` on, its
+  DSP meter reads 2-26 % idle and 13-26 % with a few notes a second (the first version: 35-75 % idle).
+- Open: upstream's voicing (`default.ini`: hammer, strings, soundboard, ...) needs a new engine and an empty cache
+  per change, so it is not exposed. Two instances keep two caches. A worker would solve strikes off the audio
+  thread, if hosts offer one.
+
 ## Open questions
 
 - Worker with `OffscreenCanvas` from the start, or main thread first and the worker later?

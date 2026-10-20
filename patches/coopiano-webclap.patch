@@ -1,0 +1,609 @@
+coopiano: strikes solved in slices, a lazily filled strike cache, runtime output gain and reverb mix, and a
+cheaper soundboard and sympathetic resonance, for a single-threaded plugin host.
+
+A WebCLAP module has one thread, the audio thread. Building the full strike cache (88 keys x 127 velocities of the
+nonlinear contact solver) takes about 10 s and 72 MiB natively, and one strike's contact solve up to 3 ms natively,
+over 10 ms in WebAssembly (soft bass), longer than an audio block.
+
+- piano.hpp: run_contact's loop is step_contact, which can stop after a number of steps and resume from
+  ContactState; ContactJob builds a ContactResponse that way (advance with a work budget in mode-steps) and
+  ContactResponse takes the finished job. The integration is the same, so the response is the same as before,
+  and ContactResponse(key, velocity) is the job run in one go.
+- instrument.hpp: StrikeBank can start empty (lazy) and build one response at a time, in slices; Engine::has_strike,
+  build_strike and building_strike expose that, so the host solves what a note needs ahead of its note_on and
+  fills the rest in the background.
+- Engine::set_gain and set_reverb_mix change the output level and the room's wet level between process calls: the
+  room constructed with a nonzero mix keeps its delay lines, so its tail keeps running at zero mix (a room
+  constructed with zero mix stays bypassed, as before).
+
+The body costs as much as the voices of quiet playing, all the time, silence included: 14 % of real time natively
+(48 kHz, Apple M1), most of it in one block per 256 samples, which a host's per-block meter shows as a peak. Now
+under 1 % in silence, about half while playing, the same sound to rounding (-216 dB of the peak in a test render):
+- SympatheticResonance skips a string whose modes are all exactly zero while nothing drives it (they stay zero:
+  bit-identical), and the whole bank while all are and the force is zero, the dampers still moving as before. It
+  keeps each mode's radius * cosine/sine and drive per openness while the damper rests, and flushes a mode to zero
+  below 1e-12 instead of 1e-30, far below the output's resolution, so strings fall silent about twice as soon.
+- StreamingSoundboard sleeps once its input has been exactly zero for longer than its response (every state is
+  zero then, and so is the output): only the block phase moves on, so it wakes up bit-identical.
+- PartitionedConvolver multiplies half the spectrum (input and responses are real, the rest is mirrored), with the
+  complex products written out so they vectorize, and transforms both outputs with one inverse FFT (L + iR).
+  advance() lets a streaming caller accumulate the older partitions during the block; StreamingSoundboard does so
+  every 32 samples, so only the newest partition and the transforms remain at the block's end.
+- StreamingSoundboard's direct 256-tap head sums in four partials per channel, so it vectorizes.
+- Voice::render_mode_pairs sums its modes' outputs as a tree of pairs instead of one after the other (a chain of
+  dependent additions per sample): about a tenth less for the voices, the same values to rounding.
+
+diff --color -ruN a/instrument.hpp b/instrument.hpp
+--- a/instrument.hpp	2026-10-20 17:31:07
++++ b/instrument.hpp	2026-10-20 20:50:23
+@@ -87,30 +87,70 @@
+ // One immutable response for every physical key and incoming MIDI velocity.
+ // The velocity curve is baked into the bank: exact mapped values, no rounding
+ // to a different velocity or interpolation. Workspaces belong to the audio owner.
++// A lazy bank starts empty: its owner builds each response before the first
++// note that needs it (build), where a full bank solves all 88*127 up front.
++// A build may run in slices of bounded work, one response at a time.
+ class StrikeBank {
+-    std::vector<piano::ContactResponse> responses_;
++    const std::vector<piano::Key>& keys_; // the engine's, which outlives this bank
++    double gamma_;
++    std::vector<std::unique_ptr<piano::ContactResponse>> responses_;
+     std::vector<std::unique_ptr<piano::StrikeWorkspace>> workspaces_;
++    std::unique_ptr<piano::ContactJob> job_; // the response being built in slices
++    int job_key_ = 0, job_velocity_ = 0;
++    static bool valid(int physical_key, int velocity) noexcept {
++        return physical_key >= 21 && physical_key <= 108 && velocity >= 1 && velocity <= 127;
++    }
++    static size_t index(int physical_key, int velocity) noexcept {
++        return (size_t)(physical_key-21)*127+(size_t)velocity-1;
++    }
+ public:
+-    StrikeBank(const std::vector<piano::Key>& keys, const piano::Options& options, double gamma) {
++    StrikeBank(const std::vector<piano::Key>& keys, const piano::Options& options, double gamma, bool lazy = false)
++        : keys_(keys), gamma_(gamma) {
+         if (keys.size() != 88 || !std::isfinite(gamma) || gamma <= 0)
+             throw std::invalid_argument("instrument: invalid strike bank setup");
+-        responses_.reserve(88*127); workspaces_.reserve(88);
+-        for (const auto& key : keys) {
+-            workspaces_.push_back(std::make_unique<piano::StrikeWorkspace>(key, options));
+-            for (int velocity = 1; velocity <= 127; ++velocity)
+-                responses_.emplace_back(key, std::clamp(std::pow(velocity/127.0, gamma), .02, 1.0));
++        responses_.resize(88*127); workspaces_.reserve(88);
++        for (const auto& key : keys) workspaces_.push_back(std::make_unique<piano::StrikeWorkspace>(key, options));
++        if (!lazy)
++            for (int key = 21; key <= 108; ++key)
++                for (int velocity = 1; velocity <= 127; ++velocity) build(key, velocity);
++    }
++    bool has(int physical_key, int velocity) const noexcept {
++        return valid(physical_key, velocity) && responses_[index(physical_key, velocity)];
++    }
++    // Off the audio callback: allocates and runs the nonlinear contact solver, for about work mode-steps
++    // (piano::ContactJob::advance), continuing this response's unfinished build or starting it (an unfinished
++    // build of another response is dropped). Returns the work spent; the response is there once has() says so.
++    long build(int physical_key, int velocity, long work = std::numeric_limits<long>::max()) {
++        if (!valid(physical_key, velocity)) throw std::invalid_argument("instrument: invalid strike key/velocity");
++        auto& response = responses_[index(physical_key, velocity)];
++        if (response) return 0;
++        if (!job_ || job_key_ != physical_key || job_velocity_ != velocity) {
++            job_.reset();
++            job_ = std::make_unique<piano::ContactJob>(
++                keys_[(size_t)(physical_key-21)], std::clamp(std::pow(velocity/127.0, gamma_), .02, 1.0));
++            job_key_ = physical_key; job_velocity_ = velocity;
+         }
++        long spent = job_->advance(work);
++        if (job_->done()) {
++            auto job = std::move(job_);
++            response = std::make_unique<piano::ContactResponse>(std::move(*job));
++        }
++        return spent;
+     }
++    // Whether a build of this response is under way (started, not finished)
++    bool building(int physical_key, int velocity) const noexcept {
++        return job_ && job_key_ == physical_key && job_velocity_ == velocity;
++    }
+     const piano::PreparedNote* prepare(int physical_key, int velocity, uint64_t seed) noexcept {
+-        if (physical_key < 21 || physical_key > 108 || velocity < 1 || velocity > 127) return nullptr;
+-        size_t key = (size_t)(physical_key-21);
+-        auto& workspace = *workspaces_[key];
+-        if (!workspace.prepare(responses_[key*127+(size_t)velocity-1], seed)) return nullptr;
++        if (!has(physical_key, velocity)) return nullptr;
++        auto& workspace = *workspaces_[(size_t)(physical_key-21)];
++        if (!workspace.prepare(*responses_[index(physical_key, velocity)], seed)) return nullptr;
+         return &workspace.note();
+     }
+     size_t response_storage_bytes() const noexcept {
+-        size_t bytes = responses_.capacity()*sizeof(piano::ContactResponse);
+-        for (const auto& response : responses_) bytes += response.storage_bytes();
++        size_t bytes = 0;
++        for (const auto& response : responses_)
++            if (response) bytes += sizeof(piano::ContactResponse)+response->storage_bytes();
+         return bytes; // excludes workspaces, shared keys and allocator overhead
+     }
+ };
+@@ -248,11 +288,33 @@
+     // Setup/stopped engine only. A replacement is built in full before it is
+     // installed; failure preserves the current bank. Voicing/options are fixed
+     // for the Engine lifetime. To change them, construct a new Engine off audio.
+-    void build_strike_cache(double velocity_gamma = 1) {
+-        auto replacement = std::make_unique<StrikeBank>(keys_, settings_.voice_options, velocity_gamma);
++    // A lazy cache starts empty; build_strike fills it one key and velocity at a time.
++    void build_strike_cache(double velocity_gamma = 1, bool lazy = false) {
++        auto replacement = std::make_unique<StrikeBank>(keys_, settings_.voice_options, velocity_gamma, lazy);
+         strike_bank_.swap(replacement);
+     }
+     bool has_strike_cache() const noexcept { return bool(strike_bank_); }
++    // Whether note_on finds the strike for this key (clamped to the piano's 88) and MIDI velocity.
++    bool has_strike(int key, int velocity) const noexcept {
++        return strike_bank_ && valid_key(key) && strike_bank_->has(std::clamp(key,21,108), velocity);
++    }
++    // Setup/stopped engine, or between process calls of a single-threaded host: allocates and solves, all at
++    // once or in slices of about work mode-steps (StrikeBank::build). Returns the work spent.
++    long build_strike(int key, int velocity, long work = std::numeric_limits<long>::max()) {
++        if (!strike_bank_ || !valid_key(key)) throw std::invalid_argument("instrument: no strike cache or invalid key");
++        return strike_bank_->build(std::clamp(key,21,108), velocity, work);
++    }
++    bool building_strike(int key, int velocity) const noexcept {
++        return strike_bank_ && valid_key(key) && strike_bank_->building(std::clamp(key,21,108), velocity);
++    }
++    // Between process calls, no allocation: the output gain, and the room's wet level
++    // (an effect constructed with a nonzero mix only; false otherwise or out of range).
++    void set_gain(double gain) noexcept { if (std::isfinite(gain) && gain >= 0) settings_.gain = gain; }
++    bool set_reverb_mix(double mix) noexcept {
++        if (!effects_.reverb.set_mix(mix)) return false;
++        settings_.reverb.mix = mix;
++        return true;
++    }
+     size_t response_storage_bytes() const noexcept {
+         return strike_bank_ ? strike_bank_->response_storage_bytes() : 0;
+     }
+diff --color -ruN a/piano.hpp b/piano.hpp
+--- a/piano.hpp	2026-10-20 17:43:35
++++ b/piano.hpp	2026-10-20 20:50:23
+@@ -494,26 +494,34 @@
+     ContactStatus status = ContactStatus::not_run;
+ };
+ 
+-// Integrate hammer + strings until the hammer separates. The strings keep
+-// their (q, qd) state for the free-vibration phase.
+-inline ContactResult run_contact(const KeyParams& k, std::vector<StringModes>& strs,
+-                                 double v_h0, std::vector<double>& contact_force,
+-                                 std::array<std::vector<double>,3>* string_force = nullptr) {
++// The hammer's state between steps of a contact integration (step_contact), so it can run in slices.
++struct ContactState {
++    double y_h = 0.0, v_h = 0.0;
++    bool touched = false, separated = false, done = false;
++    int step = 0;
++    ContactResult res;
++};
++
++// Integrate hammer + strings for at most max_slice steps, or until the hammer separates (done). The strings keep
++// their (q, qd) state for the free-vibration phase. Sliced runs compute exactly what one run does.
++inline void step_contact(const KeyParams& k, std::vector<StringModes>& strs, ContactState& st,
++                         std::vector<double>& contact_force,
++                         std::array<std::vector<double>,3>* string_force, long max_slice) {
+     constexpr int OS = 32;                  // oversampling vs FS
+     const double dt = 1.0 / (FS * (double)OS);
+     const int max_steps = (int)(0.030 * FS * OS);
+ 
+-    double y_h = 0.0, v_h = v_h0;
+-    bool touched = false;
+-    ContactResult res;
+-    contact_force.clear();
+-    if (string_force) for (auto& force : *string_force) force.clear();
+-    bool separated = false;
+-    int step = 0;
+-    for (; step < max_steps; ++step) {
++    double y_h = st.y_h, v_h = st.v_h;
++    bool touched = st.touched;
++    ContactResult& res = st.res;
++    bool separated = st.separated;
++    int step = st.step;
++    bool stopped = false;
++    for (long slice = 0; step < max_steps; ++step, ++slice) {
+         // Finish the fractional output sample after separation. The state
+         // returned below belongs exactly at contact_force.size() / FS.
+-        if (separated && step % OS == 0) break;
++        if (separated && step % OS == 0) { stopped = true; break; }
++        if (slice == max_slice) break;
+         // emit the bridge force at output rate so the note's waveform ramps
+         // up through the strike instead of starting at a step
+         if (step % OS == 0) {
+@@ -562,11 +570,24 @@
+         v_h -= dt * F_tot / k.m_h;
+         y_h += dt * v_h;
+     }
++    st.y_h = y_h; st.v_h = v_h; st.touched = touched; st.separated = separated; st.step = step;
++    if (!stopped && step < max_steps) return; // the slice ended first
+     if (!separated) res.duration_ms = step * dt * 1000.0;
+     res.status = separated ? ContactStatus::separated : ContactStatus::timed_out;
+-    return res;
++    st.done = true;
+ }
+ 
++inline ContactResult run_contact(const KeyParams& k, std::vector<StringModes>& strs,
++                                 double v_h0, std::vector<double>& contact_force,
++                                 std::array<std::vector<double>,3>* string_force = nullptr) {
++    ContactState st;
++    st.v_h = v_h0;
++    contact_force.clear();
++    if (string_force) for (auto& force : *string_force) force.clear();
++    step_contact(k, strs, st, contact_force, string_force, -1);
++    return st.res;
++}
++
+ // ---------------------------------------------------------------------------
+ // Free vibration: each (mode x polarization) becomes a complex phasor.
+ // Vertical polarization carries the strike and decays fast; horizontal gets
+@@ -1783,6 +1804,38 @@
+                         key.has_damper());
+ }
+ 
++// A ContactResponse under construction in slices, for hosts that solve on their audio thread: advance() runs
++// the contact integration for a bounded amount of work, a finished job becomes the response. The result is the
++// same as the response constructed at once.
++class ContactJob {
++    Key key_;
++    double velocity_;
++    std::vector<detail::StringModes> strings_;
++    detail::ContactState state_;
++    std::vector<double> force_;
++    std::array<std::vector<double>,3> string_force_;
++    long modes_ = 0;
++    friend class ContactResponse;
++public:
++    ContactJob(const Key& key, double velocity) : key_(key), velocity_(velocity) {
++        detail::validate_velocity(velocity);
++        velocity_ = std::clamp(velocity, .02, 1.0);
++        strings_ = detail::KeyAccess::strings(key_);
++        state_.v_h = key_.parameters().hammer.maximum_velocity_mps
++            * std::pow(velocity_, key_.parameters().hammer.velocity_exponent);
++        for (const auto& s : strings_) modes_ += s.n_modes;
++    }
++    bool done() const noexcept { return state_.done; }
++    // Integrates for about work mode-steps (one string mode advanced by one oversampled step), at least one
++    // step; returns the mode-steps spent. Allocates as the force records grow.
++    long advance(long work) {
++        if (state_.done) return 0;
++        long steps = std::max(1L, work / std::max(1L, modes_)), before = state_.step;
++        detail::step_contact(key_.parameters(), strings_, state_, force_, &string_force_, steps);
++        return (state_.step - before) * modes_;
++    }
++};
++
+ // Seed-independent hammer/string motion at one exact normalized velocity.
+ // Construct/copy/destroy off the audio thread. Key copies share coefficients;
+ // the response itself is immutable and may be read concurrently by workspaces.
+@@ -1792,15 +1845,15 @@
+     detail::ContactResult contact_;
+     std::array<std::vector<double>,3> force_, q_, qd_;
+     friend class StrikeWorkspace;
++    static ContactJob solved(ContactJob job) { job.advance(std::numeric_limits<long>::max()); return job; }
+ public:
+-    ContactResponse(const Key& key, double velocity) : key_(key), velocity_(velocity) {
+-        detail::validate_velocity(velocity);
+-        velocity_ = std::clamp(velocity, .02, 1.0);
+-        auto strings = detail::KeyAccess::strings(key_);
+-        std::vector<double> force;
+-        double hammer = key_.parameters().hammer.maximum_velocity_mps
+-            * std::pow(velocity_, key_.parameters().hammer.velocity_exponent);
+-        contact_ = detail::run_contact(key_.parameters(), strings, hammer, force, &force_);
++    ContactResponse(const Key& key, double velocity) : ContactResponse(solved(ContactJob(key, velocity))) {}
++    // From a finished job (done()); throws for an unfinished one
++    explicit ContactResponse(ContactJob&& job) : key_(job.key_), velocity_(job.velocity_) {
++        if (!job.done()) throw std::logic_error("piano: contact job is not finished");
++        contact_ = job.state_.res;
++        force_ = std::move(job.string_force_);
++        auto& strings = job.strings_;
+         bool finite = std::isfinite(contact_.duration_ms) && std::isfinite(contact_.peak_force);
+         for (size_t i = 0; i < strings.size(); ++i) {
+             q_[i] = std::move(strings[i].q); qd_[i] = std::move(strings[i].qd);
+@@ -1996,7 +2049,9 @@
+             if constexpr (Rising) longitudinal[p] = {a.longitudinal,b.longitudinal};
+         }
+         for (int i = 0; i < length; ++i) {
+-            double value = values[i];
++            // Summed as a tree of pairs, not one mode after the other: the same values to rounding, without a
++            // chain of N dependent additions per sample
++            std::array<ModePair,N/2> samples;
+             for (size_t p = 0; p < N/2; ++p) {
+                 ModePair sample = weight[p]*re[p];
+                 if constexpr (Rising) {
+@@ -2004,9 +2059,11 @@
+                                   longitudinal[p][1] ? onset[i] : 1.0};
+                     sample *= gain;
+                 }
+-                value += sample[0]; value += sample[1];
++                samples[p] = sample;
+             }
+-            values[i] = value;
++            for (size_t width = N/2; width > 1; width /= 2)
++                for (size_t p = 0; p < width/2; ++p) samples[p] = samples[2*p] + samples[2*p+1];
++            values[i] += samples[0][0] + samples[0][1];
+             for (size_t p = 0; p < N/2; ++p) {
+                 ModePair mr = sr[p], mi = si[p];
+                 if constexpr (Ramp) {
+@@ -2212,11 +2269,14 @@
+     struct Mode {
+         double re = 0.0, im = 0.0;
+         double cosine, sine, open_radius, closed_radius, drive;
++        double a = 0.0, b = 0.0, e = 0.0; // radius * cosine, radius * sine and drive * openness, at coefficients
+     };
+     struct StringGroup {
+         size_t begin = 0, end = 0;
+         bool held = false, undamped = false;
++        bool silent = true; // every mode exactly zero: without drive it stays so, and its work is skipped
+         double openness = 0.0;
++        double coefficients = -1.0; // the openness the modes' a, b and e belong to, recomputed as it moves
+     };
+     std::vector<Mode> modes_;
+     std::array<StringGroup, 88> strings_{};
+@@ -2310,6 +2370,7 @@
+             group.openness = group.undamped ? 1.0 : 0.0;
+         }
+         for (auto& mode : modes_) mode.re = mode.im = 0.0;
++        for (auto& group : strings_) group.silent = true;
+     }
+     // In-place dry + wet bridge force; arbitrary buffer divisions are equivalent.
+     // Finite audio is a caller precondition, as for the other realtime APIs.
+@@ -2325,6 +2386,23 @@
+         detail::validate_buffer(force.data, force.size);
+         if (own_by_key) (void)own_extent(force.size, own_stride);
+         if (gain_ == 0.0) return;
++        // Every string silent and no force: only the dampers move, the same steps as below
++        bool asleep = true;
++        for (const auto& group : strings_) asleep &= group.silent;
++        for (size_t i = 0; asleep && i < force.size; ++i) asleep = force.data[i] == 0.0;
++        if (asleep) {
++            for (auto& group : strings_) {
++                const double target = group.held || group.undamped ? 1.0 : pedal_lift_;
++                for (size_t i = 0; i < force.size && group.openness != target; ++i) {
++                    if (target >= 1.0) group.openness = std::min(1.0, group.openness + ramp_);
++                    else if (target <= 0.0) group.openness = std::max(0.0, group.openness - ramp_);
++                    else if (group.openness < target) group.openness = std::min(target, group.openness + ramp_);
++                    else group.openness = std::max(target, group.openness - ramp_);
++                }
++            }
++            for (size_t i = 0; i < force.size; ++i) force.data[i] = force.data[i] + gain_ * 0.0;
++            return;
++        }
+         const bool withhold = own_by_key && own_drive_ < 1.0;
+         const double withheld = 1.0 - own_drive_;
+         for (size_t i = 0; i < force.size; ++i) {
+@@ -2338,18 +2416,32 @@
+                 else if (target <= 0.0) group.openness = std::max(0.0, group.openness - ramp_);
+                 else if (group.openness < target) group.openness = std::min(target, group.openness + ramp_);
+                 else group.openness = std::max(target, group.openness - ramp_);
++                if (group.silent && (drive_input == 0.0 || group.openness == 0.0)) continue;
++                if (group.coefficients != group.openness) {
++                    group.coefficients = group.openness;
++                    for (size_t m = group.begin; m < group.end; ++m) {
++                        auto& mode = modes_[m];
++                        const double radius = mode.closed_radius
++                                            + group.openness * (mode.open_radius - mode.closed_radius);
++                        mode.a = radius * mode.cosine;
++                        mode.b = radius * mode.sine;
++                        mode.e = mode.drive * group.openness;
++                    }
++                }
++                bool silent = true;
+                 for (size_t m = group.begin; m < group.end; ++m) {
+                     auto& mode = modes_[m];
+-                    double radius = mode.closed_radius
+-                                  + group.openness * (mode.open_radius - mode.closed_radius);
+-                    double re = radius * (mode.cosine * mode.re - mode.sine * mode.im)
+-                              + mode.drive * group.openness * drive_input;
+-                    mode.im = radius * (mode.sine * mode.re + mode.cosine * mode.im);
++                    double re = mode.a * mode.re - mode.b * mode.im + mode.e * drive_input;
++                    mode.im = mode.b * mode.re + mode.a * mode.im;
+                     mode.re = re;
+-                    if (std::abs(mode.re) + std::abs(mode.im) < 1e-30)
++                    // 1e-30 upstream: 1e-12, far below the output's resolution, lets silent strings (and then
++                    // the soundboard behind them) fall asleep about half as long after the last note
++                    if (std::abs(mode.re) + std::abs(mode.im) < 1e-12)
+                         mode.re = mode.im = 0.0;
++                    else silent = false;
+                     wet += mode.re;
+                 }
++                group.silent = silent;
+             }
+             force.data[i] = input + gain_ * wet;
+         }
+@@ -2373,9 +2465,10 @@
+     std::vector<std::complex<double>> Y[2], A;
+     std::vector<double> prev;
+     int head = 0;
++    int done = 1; // partitions already accumulated into Y for the coming block (advance); 0 is its newest
+ 
+     void swap(PartitionedConvolver& other) noexcept {
+-        std::swap(P, other.P); std::swap(head, other.head);
++        std::swap(P, other.P); std::swap(head, other.head); std::swap(done, other.done);
+         std::swap(H, other.H); X.swap(other.X);
+         std::swap(Y, other.Y); A.swap(other.A); prev.swap(other.prev);
+     }
+@@ -2433,8 +2526,33 @@
+         for (auto& channel : Y) std::fill(channel.begin(), channel.end(), std::complex<double>{});
+         std::fill(A.begin(), A.end(), std::complex<double>{});
+         std::fill(prev.begin(), prev.end(), 0.0);
++        done = 1;
+     }
+ 
++    // Accumulates partition p of the coming block. Inputs and responses are real, so their spectra are
++    // Hermitian: bins 0..BLOCK_SIZE suffice, process mirrors the rest.
++    // The products are written out (std::complex's checks for infinities keep the loop from vectorizing).
++    void accumulate(int p) noexcept {
++        const double* x = reinterpret_cast<const double*>(X[(head - p + P) % P].data());
++        const double* hL = reinterpret_cast<const double*>(H[0][p].data());
++        const double* hR = reinterpret_cast<const double*>(H[1][p].data());
++        double* yL = reinterpret_cast<double*>(Y[0].data());
++        double* yR = reinterpret_cast<double*>(Y[1].data());
++        for (int i = 0; i <= 2 * BLOCK_SIZE; i += 2) {
++            const double re = x[i], im = x[i + 1];
++            yL[i] += re * hL[i] - im * hL[i + 1];
++            yL[i + 1] += re * hL[i + 1] + im * hL[i];
++            yR[i] += re * hR[i] - im * hR[i + 1];
++            yR[i + 1] += re * hR[i + 1] + im * hR[i];
++        }
++    }
++    // Optional, between process calls: the older partitions only need past input, so a streaming caller
++    // spreads their work over the block, here up to filled/BLOCK_SIZE of them, instead of all in process.
++    void advance(size_t filled) noexcept {
++        const int target = 1 + (int)((size_t)(P - 1) * std::min(filled, (size_t)BLOCK_SIZE) / BLOCK_SIZE);
++        for (; done < target; ++done) accumulate(done);
++    }
++
+     // Exactly BLOCK_SIZE samples in each view. Input may alias either output;
+     // the two output views must not overlap. Checks do not scan audio samples.
+     void process(ConstAudioBuffer input, AudioBuffer left, AudioBuffer right) {
+@@ -2453,22 +2571,23 @@
+         std::copy(in, in + BLOCK_SIZE, prev.begin());
+         detail::fft(A, false);
+         X[head] = A;
+-        std::fill(Y[0].begin(), Y[0].end(), std::complex<double>(0.0));
+-        std::fill(Y[1].begin(), Y[1].end(), std::complex<double>(0.0));
+-        for (int p = 0; p < P; ++p) {
+-            const auto& x = X[(head - p + P) % P];
+-            const auto& hL = H[0][p];
+-            const auto& hR = H[1][p];
+-            for (int i = 0; i < 2 * BLOCK_SIZE; ++i) {
+-                Y[0][i] += x[i] * hL[i];
+-                Y[1][i] += x[i] * hR[i];
+-            }
+-        }
+-        detail::fft(Y[0], true); detail::fft(Y[1], true);
++        for (; done < P; ++done) accumulate(done);
++        accumulate(0);
++        // Both outputs are real: one inverse transform of L + iR, its bins above BLOCK_SIZE mirrored
++        auto& Z = Y[0];
++        const auto& R = Y[1];
++        const std::complex<double> j(0.0, 1.0);
++        for (int i = 1; i < BLOCK_SIZE; ++i)
++            Z[2 * BLOCK_SIZE - i] = std::conj(Z[i]) + j * std::conj(R[i]);
++        for (int i = 0; i <= BLOCK_SIZE; ++i) Z[i] += j * R[i];
++        detail::fft(Z, true);
+         for (int i = 0; i < BLOCK_SIZE; ++i) {
+-            outL[i] = Y[0][BLOCK_SIZE + i].real();
+-            outR[i] = Y[1][BLOCK_SIZE + i].real();
++            outL[i] = Z[BLOCK_SIZE + i].real();
++            outR[i] = Z[BLOCK_SIZE + i].imag();
+         }
++        std::fill(Y[0].begin(), Y[0].end(), std::complex<double>(0.0));
++        std::fill(Y[1].begin(), Y[1].end(), std::complex<double>(0.0));
++        done = 1;
+         head = (head + 1) % P;
+     }
+ };
+diff --color -ruN a/reverb.hpp b/reverb.hpp
+--- a/reverb.hpp	2026-10-20 17:31:07
++++ b/reverb.hpp	2026-10-20 20:50:23
+@@ -104,10 +104,17 @@
+     StereoReverb& operator=(StereoReverb&&) = delete;
+ 
+     const Options& options() const noexcept { return options_; }
++    // Wet level of an effect constructed with a nonzero mix; its tail keeps running at zero.
++    // No allocation. False (unchanged) for a bypassed construction or a value outside [0,1].
++    bool set_mix(double mix) noexcept {
++        if (lines_[0].samples.empty() || !(mix >= 0 && mix <= 1)) return false;
++        options_.mix = mix;
++        return true;
++    }
+     // Conservative tail after the final input: two nominal T60s plus predelay
+     // and a small allowance for input diffusion/filter delay. Zero in bypass.
+     size_t tail_samples() const noexcept {
+-        return options_.mix == 0 ? 0 : (size_t)std::ceil(sample_rate_
++        return lines_[0].samples.empty() ? 0 : (size_t)std::ceil(sample_rate_
+             * (2.0 * options_.decay_seconds + options_.predelay_ms / 1000.0 + .15));
+     }
+     void reset() noexcept {
+@@ -127,7 +134,7 @@
+         std::less<const double*> before;
+         if (before(left, right + count) && before(right, left + count))
+             throw std::invalid_argument("reverb channels must not overlap");
+-        if (options_.mix == 0) return;
++        if (lines_[0].samples.empty()) return; // constructed with zero mix: bypassed
+         constexpr double norm = .3535533905932737622; // 1/sqrt(8)
+         constexpr double input_right[] = {1,1,1,1,-1,-1,-1,-1};
+         constexpr double output_left[] = {1,1,-1,-1,1,1,-1,-1};
+diff --color -ruN a/streaming_soundboard.hpp b/streaming_soundboard.hpp
+--- a/streaming_soundboard.hpp	2026-10-20 20:07:42
++++ b/streaming_soundboard.hpp	2026-10-20 20:50:23
+@@ -14,6 +14,7 @@
+     std::array<double,block> head_left_{}, head_right_{}, input_{}, tail_left_{}, tail_right_{};
+     std::array<double,2*block> history_{}; // mirrored for contiguous FIR reads
+     size_t head_size_ = 0, position_ = 0, cursor_ = 0;
++    size_t zeros_ = 0, settle_ = 0; // input exactly zero for zeros_ samples; from settle_ on, every state is zero
+ 
+     void swap(StreamingSoundboard& other) noexcept {
+         std::swap(tail_,other.tail_);
+@@ -21,6 +22,7 @@
+         input_.swap(other.input_); tail_left_.swap(other.tail_left_); tail_right_.swap(other.tail_right_);
+         history_.swap(other.history_);
+         std::swap(head_size_,other.head_size_); std::swap(position_,other.position_); std::swap(cursor_,other.cursor_);
++        std::swap(zeros_,other.zeros_); std::swap(settle_,other.settle_);
+     }
+     static bool overlaps(const double* a, const double* b, size_t count) noexcept {
+         if (!count) return false;
+@@ -49,6 +51,9 @@
+             std::vector<double> r(right.begin()+std::min(block,right.size()),right.end());
+             replacement.tail_.init(l,r);
+         }
++        // the history, the pending tail and every partition's spectrum have seen only zeros by then
++        replacement.settle_ = (replacement.tail_.partition_count()+2)*block;
++        replacement.zeros_ = replacement.settle_;
+         swap(replacement);
+     }
+     // No allocation or deallocation during processing/reset. Input can be exactly
+@@ -65,14 +70,36 @@
+             || (input.data != left.data && overlaps(input.data,left.data,input.size))
+             || (input.data != right.data && overlaps(input.data,right.data,input.size)))
+             throw std::invalid_argument("instrument: soundboard buffers overlap");
++        // Asleep: the input has been exactly zero for longer than the response, so the output is exactly zero.
++        // Only the block phase moves on, so waking up computes what running through the silence would have.
++        if (zeros_ >= settle_) {
++            size_t silent = 0;
++            while (silent < input.size && input.data[silent] == 0.0) ++silent;
++            if (silent == input.size) {
++                std::fill_n(left.data,input.size,0.0);
++                std::fill_n(right.data,input.size,0.0);
++                position_ = (position_+input.size)%block;
++                cursor_ = (cursor_+block-input.size%block)%block;
++                return;
++            }
++        }
+         for (size_t i=0; i<input.size; ++i) {
+             const double x = input.data[i];
++            zeros_ = x == 0.0 ? std::min(zeros_+1,settle_) : 0;
+             input_[position_] = x;
+             cursor_ = (cursor_+block-1)%block;
+             history_[cursor_] = history_[cursor_+block] = x;
+             const double* history = history_.data()+cursor_;
+-            double l = 0, r = 0;
+-            for (size_t tap=0; tap<head_size_; ++tap) {
++            // four partial sums per channel, so the loop vectorizes
++            double ls[4] = {}, rs[4] = {};
++            size_t tap = 0;
++            for (; tap+4<=head_size_; tap+=4)
++                for (size_t k=0; k<4; ++k) {
++                    ls[k] += history[tap+k]*head_left_[tap+k];
++                    rs[k] += history[tap+k]*head_right_[tap+k];
++                }
++            double l = (ls[0]+ls[1])+(ls[2]+ls[3]), r = (rs[0]+rs[1])+(rs[2]+rs[3]);
++            for (; tap<head_size_; ++tap) {
+                 l += history[tap]*head_left_[tap];
+                 r += history[tap]*head_right_[tap];
+             }
+@@ -82,12 +109,13 @@
+                 if (tail_.ready()) tail_.process({input_.data(),block},
+                     {tail_left_.data(),block},{tail_right_.data(),block});
+                 position_ = 0;
+-            }
++            } else if ((position_ & 31) == 0 && tail_.ready())
++                tail_.advance(position_); // the tail's older partitions, spread over the block
+         }
+     }
+     void reset() noexcept {
+         tail_.reset(); input_.fill(0); tail_left_.fill(0); tail_right_.fill(0);
+-        history_.fill(0); position_ = cursor_ = 0;
++        history_.fill(0); position_ = cursor_ = 0; zeros_ = settle_;
+     }
+ };
+ } // namespace detail

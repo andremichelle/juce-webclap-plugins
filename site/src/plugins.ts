@@ -57,6 +57,13 @@ export const Plugins: ReadonlyArray<PluginEntry> = [
         credit: "https://github.com/surge-synthesizer/surge", source: port("surge-xt"), license: "GPL-3.0-or-later"
     },
     {
+        id: "coopiano", name: "coopiano", kind: "instrument",
+        description: "Physically modelled piano: hammer, strings, soundboard, sympathetic resonance and room, no samples",
+        uuid: "00000000-0000-4000-8000-000000000000", clapId: "com.peterc.coopiano",
+        archive: "build/coopiano/coopiano.wclap.tar.gz", build: "scripts/build-coopiano.sh",
+        credit: "https://github.com/peterc/coopiano", source: port("coopiano"), license: "MIT"
+    },
+    {
         id: "sc-dark", name: "Polarity SC Dark", kind: "audio-fx",
         description: "Spectral compressor with upward and downward compression",
         uuid: "728df9f2-0d68-4029-9ec8-1e1efa34083b", clapId: "de.polarity-music.polarity-sc-dark",

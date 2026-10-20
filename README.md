@@ -28,10 +28,12 @@ plugin gets there depends on what it is written with, so the ports here come fro
 | [RipplerX](https://github.com/tiagolr/ripplerx) | Physically modeled percussion synth: mallet and noise exciters into coupled resonators | JUCE kit: an `AudioProcessor` like OB-Xf, plus a little glue for what its editor does beside parameters: keyboard notes, output meter, polyphony, factory programs (`ports/ripplerx/ui_main.cpp`) | GPL-3.0 |
 | [Odin 2](https://github.com/TheWaveWarden/odin2) | Polyphonic semi-modular synth: three oscillators, two filters, modulation matrix, effects | JUCE kit: an `AudioProcessor` whose editor edits the patch's non-parameter trees directly; those cross over as tree properties, patch loads as one frame (`ports/odin2/odin2_frames.h`) | GPL-3.0-or-later |
 | [Surge XT](https://github.com/surge-synthesizer/surge) | Hybrid synth: many oscillator, filter and effect types, deep modulation | JUCE kit: an `AudioProcessor` whose editor reaches into the whole engine, so `ui.wasm` runs a second, silent engine as its stand-in. Parameters cross over as usual, patch loads as state, modulation routings as frames (`ports/surge-xt/surge_frames.h`). Without Lua, OSC and MTS-ESP | GPL-3.0-or-later |
+| [coopiano](https://github.com/peterc/coopiano) | Physically modelled piano: hammer, strings, soundboard, sympathetic resonance and room, no samples | Plain CLAP, no JUCE and no editor: upstream's engine behind a small C++ wrapper (`ports/coopiano/coopiano_clap.cpp`). Every note's hammer contact is a nonlinear solve too slow for one audio block, so a patch makes it resumable (same results) and the wrapper fills the strike cache in slices on the audio thread | MIT |
 | [Polarity SC Dark](https://github.com/polarity/plugin.nih.polarity-sc-dark) | Spectral compressor with upward and downward compression | Rust/NIH-plug + WASI, with a separate HTML/Canvas interface, presets, draggable curve points, and help ([port guide](ports/sc-dark/README.md)) | GPL-3.0-or-later |
 
 The license column is the plugin's and its port's (`ports/<port>/`). JUCE-built bundles link JUCE, so they ship as
-AGPL-3.0. SC Dark does not link JUCE and uses GPL-3.0-or-later. See [Licenses](#licenses).
+AGPL-3.0. SC Dark and coopiano do not link JUCE: SC Dark uses GPL-3.0-or-later, coopiano MIT. See
+[Licenses](#licenses).
 
 ## The site
 
@@ -83,6 +85,10 @@ open http://127.0.0.1:8126/
 scripts/build-surge-xt.sh             # and Surge XT
 python3 scripts/serve.py build/surge-xt/web 8127
 open http://127.0.0.1:8127/
+
+scripts/build-coopiano.sh             # and coopiano (no JUCE, no editor: a few seconds)
+python3 scripts/serve.py build/coopiano/web 8129
+open http://127.0.0.1:8129/
 ```
 
 A clean OB-Xf build takes about 12 minutes, mostly the large JUCE unity files. `-DOBXF_WEB_PNG_THEME=OFF` (passed to
@@ -144,7 +150,8 @@ play, the editor's controls move the sound, automation moves the controls, and s
 Reopen. Changes to `modules/juce_webclap` touch every port: build them all.
 
 **Other plugins** bring an independent build path that keeps its dependencies pinned and ships its own license and
-notices. SC Dark shows one: `ports/sc-dark/upstream.json` pins the source, a patch and an overlay adapt it, and
+notices. coopiano is the smallest: a plain CLAP plugin in C++ (`ports/coopiano`), built with Emscripten and the
+kit's WASI shim, no JUCE. SC Dark shows another: `ports/sc-dark/upstream.json` pins the source, a patch and an overlay adapt it, and
 `scripts/build-sc-dark.sh` builds, tests and packs the bundle.
 
 ## Licenses
@@ -155,11 +162,11 @@ its plugin's license (see the table above, and `ports/<port>/LICENSE` for the GP
 `patches/juce-8-wasm.patch` modifies JUCE and falls under JUCE's license, the other patches under their plugin's
 license.
 
-Each JUCE bundle ships its license (`LICENSE`, AGPL-3.0), `NOTICES.md` (components, copyrights, the repository commit
+Each JUCE bundle ships its license (`LICENSE`, AGPL-3.0; coopiano's is MIT), `NOTICES.md` (components, copyrights, the repository commit
 it was built from) and the longer texts in `licenses/`, see `ports/<port>/NOTICES.md.in` and
 `scripts/bundle-license.sh`. Build hosted bundles from a clean, pushed commit, so the source link matches.
 
 JUCE-built bundles link JUCE, so they are AGPLv3 (or covered by a commercial JUCE license) and also under the port's
 license. JUCE is AGPLv3/commercial, OB-Xf is GPL-3.0-or-later, RipplerX GPL-3.0, Odin 2 GPL-3.0-or-later (its Aldrich
-font OFL-1.1), Surge XT GPL-3.0-or-later, Six Sines MIT (GPL-3.0 as built), the CLAP headers MIT, the DejaVu fonts
+font OFL-1.1), Surge XT GPL-3.0-or-later, Six Sines MIT (GPL-3.0 as built), coopiano MIT, the CLAP headers MIT, the DejaVu fonts
 under the Bitstream Vera license; none of them is checked in, `scripts/fetch-deps.py` downloads them.
