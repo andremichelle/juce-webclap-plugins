@@ -26,6 +26,7 @@ plugin gets there depends on what it is written with, so the ports here come fro
 | [OB-Xf](https://github.com/surge-synthesizer/OB-Xf) | Virtual analog synth after the Oberheim OB-X, the continuation of OB-Xd | JUCE kit: a `juce::AudioProcessor`, wrapped by the kit on both sides | GPL-3.0-or-later |
 | [Six Sines](https://github.com/baconpaul/six-sines) | Small phase-modulation synth: six sine-based operators in a modulation matrix | JUCE kit, CLAP-first: the module is Six Sines' own CLAP plugin with a webview bridge, the editor runs against a stand-in engine whose message queues cross over as frames (`ports/six-sines/six_sines_wire.h`) | MIT (GPL-3.0 as built) |
 | [RipplerX](https://github.com/tiagolr/ripplerx) | Physically modeled percussion synth: mallet and noise exciters into coupled resonators | JUCE kit: an `AudioProcessor` like OB-Xf, plus a little glue for what its editor does beside parameters: keyboard notes, output meter, polyphony, factory programs (`ports/ripplerx/ui_main.cpp`) | GPL-3.0 |
+| [Dexed](https://github.com/asb2m10/dexed) | DX7 FM synthesizer: six operators, 32 algorithms, cartridge manager | JUCE kit: a plain `AudioProcessor` (APVTS), Dexed's own sources with one small patch (`patches/dexed-webclap.patch`: a headless build for the DSP module, no dialogs or hardware MIDI ports there) | GPL-3.0 |
 | [Odin 2](https://github.com/TheWaveWarden/odin2) | Polyphonic semi-modular synth: three oscillators, two filters, modulation matrix, effects | JUCE kit: an `AudioProcessor` whose editor edits the patch's non-parameter trees directly; those cross over as tree properties, patch loads as one frame (`ports/odin2/odin2_frames.h`) | GPL-3.0-or-later |
 | [Surge XT](https://github.com/surge-synthesizer/surge) | Hybrid synth: many oscillator, filter and effect types, deep modulation | JUCE kit: an `AudioProcessor` whose editor reaches into the whole engine, so `ui.wasm` runs a second, silent engine as its stand-in. Parameters cross over as usual, patch loads as state, modulation routings as frames (`ports/surge-xt/surge_frames.h`). Without Lua, OSC and MTS-ESP | GPL-3.0-or-later |
 | [Polarity SC Dark](https://github.com/polarity/plugin.nih.polarity-sc-dark) | Spectral compressor with upward and downward compression | Rust/NIH-plug + WASI, with a separate HTML/Canvas interface, presets, draggable curve points, and help ([port guide](ports/sc-dark/README.md)) | GPL-3.0-or-later |
@@ -83,6 +84,9 @@ open http://127.0.0.1:8126/
 scripts/build-surge-xt.sh             # and Surge XT
 python3 scripts/serve.py build/surge-xt/web 8127
 open http://127.0.0.1:8127/
+scripts/build-dexed.sh                # and Dexed
+python3 scripts/serve.py build/dexed/web 8128
+open http://127.0.0.1:8128/
 ```
 
 A clean OB-Xf build takes about 12 minutes, mostly the large JUCE unity files. `-DOBXF_WEB_PNG_THEME=OFF` (passed to

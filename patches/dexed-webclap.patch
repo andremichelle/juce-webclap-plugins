@@ -1,0 +1,285 @@
+Dexed for WebCLAP (open-webclap port): what the browser build changes in Dexed's own sources.
+
+module.wasm is the processor without an editor, so it is compiled with DEXED_HEADLESS; both modules are compiled
+with DEXED_WEBCLAP. Neither macro is defined in upstream builds, whose behaviour stays unchanged. The changes:
+
+  - PluginProcessor.h: no clap-juce-extensions (the kit wraps the processor itself); the FileChooser member is
+    left out of the headless build.
+  - PluginProcessor.cpp: the headless build leaves out the editor include and hasEditor()/createEditor()
+    (ports/dexed/dsp_main.cpp defines them), and computes the VU meter decay itself (the same formula as
+    VuMeterOutput::getDecayFactor, which belongs to the editor's sources).
+  - PluginData.cpp: the headless build shows no AlertWindow. One added `return` after the "Unable to open"
+    dialog in sendSysexCartridge: the code went on to dereference the null stream.
+  - Tuning.cpp: the FileChooser-driven applySCLTuning() / applyKBMMapping() overloads are left out of the
+    headless build (the editor, in the page, owns those menus).
+  - msfa/tuning.cc: its seven AlertWindow calls go through one helper that does nothing in the headless build.
+  - midi/SysexComm.h: no MidiInput/MidiOutput members (juce_audio_devices is not part of the browser build). The
+    device code that would fill them is already disabled upstream ("TODO: refactor this since JUCE 8").
+
+--- a/source/PluginData.cpp
++++ b/source/PluginData.cpp
+@@ -150,20 +150,25 @@
+     
+     std::unique_ptr<juce::FileInputStream> fis = cart.createInputStream();
+     if ( fis == NULL ) {
++#ifndef DEXED_HEADLESS // WebCLAP: the DSP module shows no dialogs
+         String f = cart.getFullPathName();
+         AlertWindow::showMessageBoxAsync (AlertWindow::WarningIcon,
+                                           "Error",
+                                           "Unable to open: " + f);
++#endif
++        return; // (it dereferenced the null stream below)
+     }
+     
+     uint8 syx_data[65535];
+     int sz = fis->read(syx_data, 65535);
+     
+     if (syx_data[0] != 0xF0) {
++#ifndef DEXED_HEADLESS
+         String f = cart.getFullPathName();
+         AlertWindow::showMessageBoxAsync (AlertWindow::WarningIcon,
+                                           "Error",
+                                           "File: " + f + " doesn't seems to contain any sysex data");
++#endif
+         return;
+     }
+     sysexComm.send(MidiMessage(syx_data, sz));
+--- a/source/PluginProcessor.cpp
++++ b/source/PluginProcessor.cpp
+@@ -22,7 +22,9 @@
+ #include <bitset>
+ 
+ #include "PluginProcessor.h"
++#ifndef DEXED_HEADLESS
+ #include "ui/PluginEditor.h"
++#endif
+ #include "parameter/Model.h"
+ 
+ #include "debugger/Logger.h"
+@@ -141,7 +143,13 @@
+     Porta::init_sr(sampleRate);
+     fx.init(sampleRate);
+ 
++#ifndef DEXED_HEADLESS
+     vuDecayFactor = VuMeterOutput::getDecayFactor(sampleRate);
++#else
++    // VuMeterOutput belongs to the editor's sources, which the DSP module leaves out: the same formula
++    // (ui/component/VUMeter.cpp, VuMeterOutput::getDecayFactor)
++    vuDecayFactor = (float) exp (-40.0 / 10.0 * log (10.0) / (0.3 * sampleRate));
++#endif
+     
+     for (int note = 0; note < MAX_ACTIVE_NOTES; ++note) {
+         voices[note].dx7_note = new Dx7Note(synthTuningState, mtsClient);
+@@ -549,6 +557,8 @@
+ }
+ 
+ //==============================================================================
++// WebCLAP: the DSP module (DEXED_HEADLESS) has no editor, it runs in the page; the module defines these two.
++#ifndef DEXED_HEADLESS
+ bool DexedAudioProcessor::hasEditor() const {
+     return true; // (change this to false if you choose to not supply an editor)
+ }
+@@ -557,6 +567,7 @@
+     AudioProcessorEditor* editor = new DexedAudioProcessorEditor (this);
+     return editor;
+ }
++#endif
+ 
+ void DexedAudioProcessor::setZoomFactor(float factor) {
+     zoomFactor = factor;
+--- a/source/PluginProcessor.h
++++ b/source/PluginProcessor.h
+@@ -23,7 +23,9 @@
+ 
+ #include "../JuceLibraryCode/JuceHeader.h"
+ 
++#ifndef DEXED_WEBCLAP // the WebCLAP kit wraps the processor itself, no clap-juce-extensions
+ #include "clap-juce-extensions/clap-juce-extensions.h"
++#endif
+ 
+ #include "msfa/controllers.h"
+ #include "msfa/dx7note.h"
+@@ -71,7 +73,10 @@
+ //==============================================================================
+ /**
+ */
+-class DexedAudioProcessor  : public AudioProcessor, public MidiInputCallback, public clap_juce_extensions::clap_properties
++class DexedAudioProcessor  : public AudioProcessor, public MidiInputCallback
++#ifndef DEXED_WEBCLAP
++    , public clap_juce_extensions::clap_properties
++#endif
+ {
+     static const int MAX_ACTIVE_NOTES = 16;
+     ProcessorVoice voices[MAX_ACTIVE_NOTES];
+@@ -247,7 +252,9 @@
+     // Prompt for a file
+     void applySCLTuning();
+     void applyKBMMapping();
++#ifndef DEXED_HEADLESS // WebCLAP: the DSP module has no file choosers or dialogs
+     std::unique_ptr<FileChooser> tuningFileChooser;
++#endif
+ 
+     // Load a file
+     void applySCLTuning(File sclf);
+--- a/source/Tuning.cpp
++++ b/source/Tuning.cpp
+@@ -31,6 +31,7 @@
+     resetTuning(createStandardTuning());
+ }
+ 
++#ifndef DEXED_HEADLESS // WebCLAP: the DSP module has no file chooser or dialogs; the editor's menu runs in the page
+ void DexedAudioProcessor::applySCLTuning() {
+     tuningFileChooser = std::make_unique<FileChooser>( "Please select a scale (.scl) file.", File(), "*.scl" );
+ 
+@@ -72,6 +73,7 @@
+             applySCLTuning(s);
+         });
+ }
++#endif
+ 
+ void DexedAudioProcessor::applySCLTuning(File s) {
+     std::string sclcontents = s.loadFileAsString().toStdString();
+@@ -103,6 +105,7 @@
+     }
+ }
+ 
++#ifndef DEXED_HEADLESS // WebCLAP: the DSP module has no file chooser or dialogs; the editor's menu runs in the page
+ void DexedAudioProcessor::applyKBMMapping() {
+     tuningFileChooser = std::make_unique<FileChooser>( "Please select a keyboard map (.kbm) file.", File(), "*.kbm" );
+ 
+@@ -143,6 +146,7 @@
+             applyKBMMapping(s);
+         });
+ }
++#endif
+ 
+ void DexedAudioProcessor::applyKBMMapping( File s ) {
+     std::string kbmcontents = s.loadFileAsString().toStdString();
+--- a/source/midi/SysexComm.h
++++ b/source/midi/SysexComm.h
+@@ -36,8 +36,16 @@
+  //#define IMPLEMENT_MidiMonitor
+ 
+ class SysexComm {
++#ifndef DEXED_WEBCLAP
+     std::unique_ptr<MidiInput> input;
+     std::unique_ptr<MidiOutput> output;
++#else
++    // WebCLAP: no hardware MIDI ports (juce_audio_devices isn't part of the browser build). The device code below
++    // is already disabled upstream ("TODO: refactor this since JUCE 8"), so these never hold a port anyway.
++    struct NoPort { void stop() {} };
++    std::unique_ptr<NoPort> input;
++    std::unique_ptr<NoPort> output;
++#endif
+     String inputName;
+     String outputName;
+     int sysexChl;
+--- a/source/msfa/tuning.cc
++++ b/source/msfa/tuning.cc
+@@ -54,16 +54,24 @@
+     return std::make_shared<StandardTuning>();
+ }
+ 
++// WebCLAP: the DSP module (DEXED_HEADLESS) shows no dialogs; the editor, in the page, reports tuning errors itself.
++static void dexedTuningAlert(const juce::String &title, const juce::String &message)
++{
++#ifndef DEXED_HEADLESS
++    juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::AlertIconType::WarningIcon, title, message, "OK");
++#else
++    juce::ignoreUnused(title, message);
++#endif
++}
++
+ std::shared_ptr<TuningState> createTuningFromSCLData( const std::string &scl )
+ {
+     Tunings::Scale s;
+     try {
+         s = Tunings::parseSCLData(scl);
+     } catch (const std::exception& e) {
+-        juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::AlertIconType::WarningIcon,
+-            "Error parsing SCL data for SCL tuning",
+-            e.what(),
+-            "OK");
++        dexedTuningAlert("Error parsing SCL data for SCL tuning",
++            e.what());
+         return nullptr;
+     }
+ 
+@@ -71,10 +79,8 @@
+     try {
+         res->tuning = Tunings::Tuning(s);
+     } catch (const std::exception& e) {
+-        juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::AlertIconType::WarningIcon,
+-            "Error creating tuning for SCL tuning",
+-            e.what(),
+-            "OK");
++        dexedTuningAlert("Error creating tuning for SCL tuning",
++            e.what());
+         res = nullptr;
+     }
+ 
+@@ -87,10 +93,8 @@
+     try {
+         k = Tunings::parseKBMData(kbm);        
+     } catch (const std::exception& e) {
+-        juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::AlertIconType::WarningIcon,
+-            "Error parsing KBM data for KBM tuning",
+-            e.what(),
+-            "OK");
++        dexedTuningAlert("Error parsing KBM data for KBM tuning",
++            e.what());
+         return nullptr;
+     }
+ 
+@@ -98,10 +102,8 @@
+     try {
+         res->tuning = Tunings::Tuning(k);
+     } catch (const std::exception& e) {
+-        juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::AlertIconType::WarningIcon,
+-            "Error creating tuning for KBM tuning",
+-            e.what(),
+-            "OK");
++        dexedTuningAlert("Error creating tuning for KBM tuning",
++            e.what());
+         res = nullptr;
+     }
+ 
+@@ -114,10 +116,8 @@
+     try {
+         s = Tunings::parseSCLData(sclData);
+     } catch (const std::exception& e) {
+-        juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::AlertIconType::WarningIcon,
+-            "Error parsing SCL data for SCL/KBM tuning",
+-            e.what(),
+-            "OK");
++        dexedTuningAlert("Error parsing SCL data for SCL/KBM tuning",
++            e.what());
+         return nullptr;
+     }
+ 
+@@ -125,10 +125,8 @@
+     try {
+         k = Tunings::parseKBMData(kbmData);        
+     } catch (const std::exception& e) {
+-        juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::AlertIconType::WarningIcon,
+-            "Error parsing KBM data for SCL/KBM tuning",
+-            e.what(),
+-            "OK");
++        dexedTuningAlert("Error parsing KBM data for SCL/KBM tuning",
++            e.what());
+         return nullptr;
+     }
+     
+@@ -136,10 +134,8 @@
+     try {
+         res->tuning = Tunings::Tuning(s, k);
+     } catch (const std::exception& e) {
+-        juce::AlertWindow::showMessageBoxAsync(juce::AlertWindow::AlertIconType::WarningIcon,
+-            "Error creating tuning for SCL/KBM tuning",
+-            e.what(),
+-            "OK");
++        dexedTuningAlert("Error creating tuning for SCL/KBM tuning",
++            e.what());
+         res = nullptr;
+     }
+     return res;

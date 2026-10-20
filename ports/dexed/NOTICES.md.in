@@ -1,0 +1,71 @@
+# Dexed for WebCLAP
+
+Dexed by Digital Suburban (Pascal Gauthier), a DX7 FM synthesizer, ported to WebCLAP. This is not an official Dexed release.
+
+- Dexed: https://github.com/asb2m10/dexed (commit fea2f0f, version 1.1.0)
+- This port, and the complete source of this bundle: @SOURCE_URL@
+  Build it with `scripts/build-dexed.sh`, which fetches every dependency below at the commit named here.
+
+## License
+
+The bundle as a whole is licensed under the **GNU Affero General Public License, version 3** (`LICENSE`).
+
+Dexed is GPL-3.0 (`licenses/GPL-3.0.txt`). Both modules contain the JUCE framework, used under the AGPL-3.0, so
+`module.wasm` and `ui/ui.wasm` are AGPL-3.0. GPL-3.0 section 13 permits the combination.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the licenses for details.
+
+Dexed's FM engine (`msfa`) is Google's music-synthesizer-for-android (Apache-2.0); its OPL3 engine builds on Steffen
+Ohrendorf's PPPlay implementation (GPL-3.0, as part of Dexed).
+
+## Components
+
+| Component | In | Copyright | License |
+|---|---|---|---|
+| [Dexed](https://github.com/asb2m10/dexed), incl. skin images, factory cartridges and the OPL3 engine (2012 Steffen Ohrendorf) | both | 2013-2025 Pascal Gauthier and contributors | GPL-3.0 |
+| msfa FM engine ([music-synthesizer-for-android](https://github.com/google/music-synthesizer-for-android)), in Dexed | both | 2012 Google Inc. | Apache-2.0 (`licenses/Apache-2.0.txt`) |
+| [Tuning Library](https://github.com/surge-synthesizer/tuning-library) | both | 2019-2020 Paul Walker | MIT (`licenses/tuning-library-MIT.txt`) |
+| surgesynthteam_tuningui (Dexed's fork) | ui | 2019-2020 Paul Walker | MIT (`licenses/tuning-library-MIT.txt`) |
+| WebCLAP kit ([open-webclap](https://github.com/andremichelle/open-webclap) `modules/juce_webclap`) | both | André Michelle | MIT |
+| WebCLAP port ([open-webclap](https://github.com/andremichelle/open-webclap) `ports/dexed`) | both | open-webclap contributors | GPL-3.0 |
+| [JUCE](https://juce.com) | both | Raw Material Software Limited | AGPL-3.0 |
+| [MTS-ESP client](https://github.com/ODDSound/MTS-ESP) | both | 2021 ODDSound Ltd. | 0BSD |
+| [CLAP](https://github.com/free-audio/clap) | module | 2021 Alexandre Bique | MIT |
+| Noto Sans font (in Dexed's skin) | both | 2022 The Noto Project Authors | SIL Open Font License 1.1 (`licenses/OFL-1.1-NotoSans.txt`) |
+| [DejaVu Sans](https://dejavu-fonts.github.io) font | ui | Bitstream, Tavmjong Bah; DejaVu changes public domain | Bitstream Vera (`licenses/DejaVu.txt`) |
+
+@JUCE_BUNDLED@
+
+## License texts
+
+### MIT
+
+Applies to the components marked MIT above, each under its own copyright line.
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+> documentation files (the "Software"), to deal in the Software without restriction, including without limitation
+> the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and
+> to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or substantial portions of
+> the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+> THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+> CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+> IN THE SOFTWARE.
+
+### 0BSD (MTS-ESP client)
+
+> Copyright (C) 2021 by ODDSound Ltd. info@oddsound.com
+>
+> Permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby
+> granted.
+>
+> THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING
+> ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL,
+> DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
+> WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE
+> USE OR PERFORMANCE OF THIS SOFTWARE.
