@@ -28,7 +28,8 @@ warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the license
 |---|---|---|---|
 | [Surge XT](https://github.com/surge-synthesizer/surge), incl. its factory patches, wavetables and skins | both | 2004-2018 Vember Audio, Claes Johanson; since 2018 various authors | GPL-3.0-or-later |
 | [sst-basic-blocks, sst-cpputils, sst-effects, sst-filters, sst-plugininfra, sst-waveshapers](https://github.com/surge-synthesizer) | both | Surge Synth Team, various authors | GPL-3.0-or-later or MIT, per library |
-| WebCLAP port ([open-webclap](https://github.com/andremichelle/open-webclap)) | both | André Michelle | MIT |
+| WebCLAP kit ([open-webclap](https://github.com/andremichelle/open-webclap) `modules/juce_webclap`) | both | André Michelle | MIT |
+| WebCLAP port ([open-webclap](https://github.com/andremichelle/open-webclap) `ports/surge-xt`) | both | André Michelle | GPL-3.0-or-later |
 | [JUCE](https://juce.com) | both | Raw Material Software Limited | AGPL-3.0 |
 | [Airwindows](https://github.com/airwindows/airwindows) | both | 2018 Chris Johnson | MIT (`licenses/Airwindows.txt`) |
 | [Mutable Instruments eurorack](https://github.com/pichenettes/eurorack) (Plaits, Clouds) | both | 2014-2020 Emilie Gillet | MIT |
