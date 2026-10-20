@@ -9,6 +9,8 @@ microphone, an audio file or a test signal for effects. The site is built on the
 [openDAW Studio](https://opendaw.studio), and the same
 bundles are in the studio's WebCLAP catalog.
 
+[![OB-Xf on webclap.opendaw.studio](docs/screenshot-obxf.webp)](https://webclap.opendaw.studio/)
+
 A WebCLAP bundle is a `module.wasm` (the DSP as a CLAP plugin) and a webview page (the plugin's editor). How a
 plugin gets there depends on what it is written with, so the ports here come from different toolchains:
 
