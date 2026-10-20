@@ -5,7 +5,8 @@ Open-source audio plugins ported to WebCLAP, the CLAP plugin format for the brow
 **Try them at [webclap.opendaw.studio](https://webclap.opendaw.studio/)**: every plugin has a page that runs it in
 openDAW's engine, with its own window, notes from the keyboard or a MIDI keyboard for instruments, and the
 microphone, an audio file or a test signal for effects. The site is built on the
-[openDAW SDK](https://www.npmjs.com/package/@opendaw/studio-sdk), the toolchain behind openDAW Studio, and the same
+[openDAW SDK](https://www.npmjs.com/package/@opendaw/studio-sdk), the toolchain behind
+[openDAW Studio](https://opendaw.studio), and the same
 bundles are in the studio's WebCLAP catalog.
 
 A WebCLAP bundle is a `module.wasm` (the DSP as a CLAP plugin) and a webview page (the plugin's editor). How a
