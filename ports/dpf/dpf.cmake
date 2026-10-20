@@ -9,12 +9,17 @@
 #   PORT_ID           bundle name, e.g. kars  (the bundle lands in web/<PORT_ID>.wclap, next to the test host page)
 #   PLUGIN_DIR        the plugin's directory with its DistrhoPluginInfo.h
 #   PLUGIN_SOURCES    the plugin's DSP sources (the Makefile's FILES_DSP)
+# and optionally:
+#   PLUGIN_INCLUDES   extra include directories
+#   PLUGIN_DEFINITIONS extra compile definitions
+#   PLUGIN_CXX_FLAGS  extra C++ flags
+#   PLUGIN_CLAP_ID    for plugins whose DistrhoPluginInfo.h predates DPF's CLAP support (no DISTRHO_PLUGIN_CLAP_ID)
 
 if(NOT EMSCRIPTEN)
     message(FATAL_ERROR "Configure with emcmake (Emscripten toolchain)")
 endif()
 
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 get_filename_component(KIT_ROOT "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
@@ -25,6 +30,12 @@ set(BUNDLE "${CMAKE_BINARY_DIR}/web/${PORT_ID}.wclap")
 # on the include path, the plugin's own header stays untouched.
 file(READ "${PLUGIN_DIR}/DistrhoPluginInfo.h" DPF_INFO_HEADER)
 string(REGEX REPLACE "(#define DISTRHO_PLUGIN_HAS_UI[ \t]+)1" "\\10" DPF_INFO_HEADER "${DPF_INFO_HEADER}")
+if(NOT DPF_INFO_HEADER MATCHES "DISTRHO_PLUGIN_CLAP_ID")
+    if(NOT PLUGIN_CLAP_ID)
+        message(FATAL_ERROR "${PLUGIN_DIR}/DistrhoPluginInfo.h has no DISTRHO_PLUGIN_CLAP_ID: set PLUGIN_CLAP_ID")
+    endif()
+    string(APPEND DPF_INFO_HEADER "\n#define DISTRHO_PLUGIN_CLAP_ID \"${PLUGIN_CLAP_ID}\"\n")
+endif()
 file(WRITE "${CMAKE_BINARY_DIR}/dpf-shim/DistrhoPluginInfo.h" "${DPF_INFO_HEADER}")
 
 add_executable(module
@@ -36,15 +47,16 @@ add_executable(module
 target_include_directories(module PRIVATE
     "${CMAKE_BINARY_DIR}/dpf-shim"
     "${PLUGIN_DIR}"
+    ${PLUGIN_INCLUDES}
     "${DPF}/distrho"
     "${DPF}/distrho/src"
     "${DPF}")
 target_compile_definitions(module PRIVATE
     DISTRHO_PLUGIN_TARGET_CLAP
     DISTRHO_NO_WARNINGS
-    DONT_SET_USING_DISTRHO_NAMESPACE
+    ${PLUGIN_DEFINITIONS}
     NDEBUG)
-target_compile_options(module PRIVATE -fPIC)
+target_compile_options(module PRIVATE -fPIC -w $<$<COMPILE_LANGUAGE:CXX>:${PLUGIN_CXX_FLAGS}>)
 
 # A standalone wasm module (no Emscripten JS) exporting clap_entry, malloc and the function table, importing only
 # WASI. The same options as JUCE_WEBCLAP_DSP_LINK_OPTIONS in modules/juce_webclap/juce_webclap.cmake, without the

@@ -1,0 +1,48 @@
+# Stegosaurus for WebCLAP
+
+Stegosaurus (a drum synthesizer by ThunderOx), ported to WebCLAP. This is not an official release.
+
+- Stegosaurus: https://github.com/thunderox/stegosaurus (commit 2820a1d, GPL-2.0)
+- [DPF](https://github.com/DISTRHO/DPF) (commit 4238e1c), the DISTRHO Plugin Framework the plugin is written with
+- This port, and the complete source of this bundle: @SOURCE_URL@
+  Build it with `scripts/build-stegosaurus.sh`, which fetches every dependency below at the commit named here.
+
+## License
+
+The bundle as a whole is licensed under the **GNU General Public License, version 2** (`LICENSE`).
+
+Stegosaurus is under the GNU General Public License, version 2 (`licenses/Stegosaurus-GPL-2.0.txt`). DPF is ISC (`licenses/DPF-ISC.txt`), which is compatible with the GPL; `module.wasm` as a whole is distributed under the GPL-2.0.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the licenses for details.
+
+The bundle holds the DSP only (`module.wasm`): DPF's own CLAP wrapper compiled to WebAssembly. The plugin's graphical
+editor is not part of it, hosts show the plugin's parameters instead.
+
+## Components
+
+| Component | Copyright | License |
+|---|---|---|
+| [Stegosaurus](https://github.com/thunderox/stegosaurus) | Nick S. Bailey (thunderox) and contributors | GPL-2.0 (`licenses/Stegosaurus-GPL-2.0.txt`) |
+| [DPF](https://github.com/DISTRHO/DPF), incl. its CLAP wrapper | 2012-2025 Filipe Coelho | ISC (`licenses/DPF-ISC.txt`) |
+| [CLAP](https://github.com/free-audio/clap) headers, bundled with DPF | 2021 Alexandre Bique | MIT |
+| WebCLAP kit ([open-webclap](https://github.com/andremichelle/open-webclap) `modules/juce_webclap/juce_webclap_standalone.cpp`) | André Michelle | MIT |
+| WebCLAP port ([open-webclap](https://github.com/andremichelle/open-webclap) `ports/stegosaurus`, `ports/dpf`) | open-webclap contributors | MIT |
+| Emscripten sysroot, linked statically: musl libc, LLVM libc++ and libc++abi | musl authors; LLVM Project | MIT; Apache-2.0 with LLVM exceptions |
+
+## License text: MIT (CLAP headers, WebCLAP kit and port)
+
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
+> documentation files (the "Software"), to deal in the Software without restriction, including without limitation
+> the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and
+> to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+>
+> The above copyright notice and this permission notice shall be included in all copies or substantial portions of
+> the Software.
+>
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO
+> THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+> AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF
+> CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
+> IN THE SOFTWARE.
+

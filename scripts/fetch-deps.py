@@ -188,6 +188,16 @@ DEPS += [
      lambda p: p.startswith("plugins/Kars/") and p.endswith((".cpp", ".hpp", ".h")) or p == "LICENSE"),
     ("Nekobi", "DISTRHO/Nekobi", "276f0c469ac5df04dbfc1265370adc86d38362f7",
      lambda p: p.startswith("plugins/Nekobi/") and p.endswith((".cpp", ".hpp", ".h", ".c")) or p == "LICENSE"),
+    ("audio-plugins", "polluxsynth/audio-plugins", "34131ce96487294f7c459b88baaf92173bf554eb",
+     lambda p: p.startswith("plugins/mimid/") and not p.endswith((".png", ".pdf", ".ttf", ".syx")) or p == "LICENSE"),
+    ("RaffoSynth-XT", "AnClark/RaffoSynth-XT", "c9b28fdd386a7fa4759f7b310a70df1aec1d0aa3",
+     lambda p: p.startswith("plugin/") or p in ("LICENSE", "README.md")),
+    ("RaffoSynth-XT/src", "nicoroulet/RaffoSynth", "e2731c9b25970b19393fc417dcd234b55e1859f1",
+     lambda p: p.endswith((".c", ".cpp", ".h", ".peg", ".md")) and "/" not in p),
+    ("aymidi", "berarma/aymidi", "73d233fa539e96c491f5308809ca6107c04c691e",
+     lambda p: p.startswith("src/") and p.endswith((".c", ".cpp", ".h", ".hpp")) or p in ("LICENSE", "README.md")),
+    ("stegosaurus", "thunderox/stegosaurus", "2820a1d31c744ed1a21e572dfa4cf490719dc76b",
+     lambda p: p.startswith("plugins/stegosaurus/") and p.endswith((".cpp", ".h", ".hpp")) or p == "LICENSE"),
 ]
 
 FONT_PACKAGE ="https://registry.npmjs.org/dejavu-fonts-ttf/-/dejavu-fonts-ttf-2.37.3.tgz"
