@@ -154,6 +154,7 @@ private:
             parameters.push_back (parameter);
             parametersById[id] = parameter;
             idsByIndex.push_back (id);
+            reportedNames.push_back (parameter->getName (CLAP_NAME_SIZE - 1));
         }
 
         const auto& info = getClapPluginInfo();
@@ -419,6 +420,40 @@ private:
         // would make both sides reload each other's patches. The host is, unless it loaded the state itself.
         if (details.nonParameterStateChanged && origin != Origin::host && hostState != nullptr)
             hostState->mark_dirty (host);
+
+        // Parameters renamed (Airwindows Consolidated's knobs belong to whichever effect is loaded): the host
+        // rescans from on_main_thread, rescan is not allowed in process
+        if (details.parameterInfoChanged)
+        {
+            paramInfoDue = true;
+
+            if (host->request_callback != nullptr)
+                host->request_callback (host);
+        }
+    }
+
+    /** Tells the host to read the parameter infos again if a name differs from what it read last. JUCE's
+        updateHostDisplay() flags everything as changed, so the names are compared. */
+    void rescanParameterInfo()
+    {
+        if (! std::exchange (paramInfoDue, false))
+            return;
+
+        bool renamed = false;
+
+        for (size_t i = 0; i < parameters.size(); ++i)
+        {
+            const auto name = parameters[i]->getName (CLAP_NAME_SIZE - 1);
+
+            if (reportedNames[i] != name)
+            {
+                reportedNames[i] = name;
+                renamed = true;
+            }
+        }
+
+        if (renamed && hostParams != nullptr && hostParams->rescan != nullptr)
+            hostParams->rescan (host, CLAP_PARAM_RESCAN_INFO | CLAP_PARAM_RESCAN_TEXT);
     }
 
     //==============================================================================
@@ -541,6 +576,7 @@ private:
     void onMainThread()
     {
         pumpMessages();
+        rescanParameterInfo();
 
         if (pageUpdateRequested)
             sendPageUpdates();
@@ -622,7 +658,7 @@ private:
     //==============================================================================
     // clap.params
 
-    bool getParamInfo (uint32_t index, clap_param_info_t* info) const
+    bool getParamInfo (uint32_t index, clap_param_info_t* info)
     {
         if (index >= parameters.size())
             return false;
@@ -641,7 +677,10 @@ private:
         info->min_value = 0.0;
         info->max_value = 1.0;
         info->default_value = parameter->getDefaultValue();
-        parameter->getName (CLAP_NAME_SIZE - 1).copyToUTF8 (info->name, CLAP_NAME_SIZE);
+        const auto name = parameter->getName (CLAP_NAME_SIZE - 1);
+        name.copyToUTF8 (info->name, CLAP_NAME_SIZE);
+
+        reportedNames[index] = name;
 
         if (const auto* group = processor->getParameterTree().getGroupsForParameter (parameter).getLast())
             group->getName().copyToUTF8 (info->module, CLAP_PATH_SIZE);
@@ -735,6 +774,7 @@ private:
         if (hostParams != nullptr && hostParams->rescan != nullptr)
             hostParams->rescan (host, CLAP_PARAM_RESCAN_VALUES);
 
+        rescanParameterInfo();
         pageSnapshot = true;
         requestPageUpdate();
         return true;
@@ -883,6 +923,7 @@ private:
 
     std::unique_ptr<AudioProcessor> processor;
     std::vector<AudioProcessorParameter*> parameters;
+    std::vector<String> reportedNames; // the names the host read, see rescanParameterInfo
     std::vector<clap_id> idsByIndex;
     std::unordered_map<clap_id, AudioProcessorParameter*> parametersById;
 
@@ -895,6 +936,7 @@ private:
     std::vector<OutEvent> outEvents;
 
     bool guiCreated = false, pageOpen = false, pageSnapshot = false, pageUpdateRequested = false;
+    bool paramInfoDue = false;
     std::unique_ptr<PageExtension> extension;
     MidiBuffer pageMidi;
     bool extensionUpdateDue = false;

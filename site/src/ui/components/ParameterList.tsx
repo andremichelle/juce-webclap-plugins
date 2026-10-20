@@ -3,6 +3,7 @@ import {Lifecycle, Terminator} from "@opendaw/lib-std"
 import {createElement, replaceChildren} from "@opendaw/lib-jsx"
 import {Html} from "@opendaw/lib-dom"
 import {AutomatableParameterFieldAdapter} from "@opendaw/studio-adapters"
+import {WclapParameterBox} from "@opendaw/studio-boxes"
 import {PluginSession} from "@/opendaw/PluginSession"
 
 const className = Html.adoptStyleSheet(css, "ParameterList")
@@ -30,9 +31,10 @@ export const ParameterList = ({lifecycle, session, filter, count}: Construct) =>
                    }}/>
         )
         const value: HTMLElement = <span className="value"/>
+        const name: HTMLElement = <span className="name" title={parameter.name}>{parameter.name}</span>
         const row: HTMLElement = (
             <div className="param">
-                <span className="name" title={parameter.name}>{parameter.name}</span>
+                {name}
                 {range}
                 {value}
             </div>
@@ -49,7 +51,19 @@ export const ParameterList = ({lifecycle, session, filter, count}: Construct) =>
             clearTimeout(timer)
             timer = window.setTimeout(() => row.classList.remove("flash"), 300)
         }))
-        rows.push({element: row, text: parameter.name.toLowerCase()})
+        const entry = {element: row, text: parameter.name.toLowerCase()}
+        // a rescan can rename it (Airwindows Consolidated's knobs belong to the loaded effect)
+        const box = parameter.field.box
+        if (box instanceof WclapParameterBox) {
+            rowsLifecycle.own(box.label.subscribe(owner => {
+                const label = owner.getValue()
+                name.textContent = label
+                name.title = label
+                entry.text = label.toLowerCase()
+                applyFilter()
+            }))
+        }
+        rows.push(entry)
         return row
     }
     const build = () => {

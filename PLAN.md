@@ -426,6 +426,38 @@ Stage 2, the editor:
   and scrolls (`juce-8-wasm.patch`, PopupMenu): placed over its parent, it left the other categories unreachable.
   The test host's worklet wrote through DataViews taken before `malloc` calls that grew the memory.
 
+## Airwindows Consolidated findings (2026-10-20)
+
+Airwindows Consolidated (Paul Walker, MIT) puts all Airwindows effects by Chris Johnson in one JUCE plugin: 528 of
+them, generated into `src/autogen_airwin` (about 335k lines of plain C++). The registry, the processor and the editor
+are upstream's, unchanged but for one patch.
+
+- Build: upstream's generated source list (`src/autogen_airwin/CMakeLists.txt`) as one static library for both
+  modules, the documentation and the editor's fonts through upstream's CMakeRC. `clap-juce-extensions` is a
+  one-struct shim (`ports/airwindows/shim`): the processor derives from `clap_properties` and only reads `is_clap`.
+  `patches/airwindows-headless.patch` leaves the editor out of `module.wasm` (`AWCO_HEADLESS`). As in RipplerX and
+  Surge XT the module links the GUI JUCE library (the processor's headers use `Colour` and `PluginHostType`).
+- `module.wasm` is 6.5 MB and imports WASI only, `ui/ui.wasm` 12.6 MB (the editor plus every effect again, for the
+  stand-in), the archive 5.5 MB. The DSP side links an empty documentation library; the linker dropped the
+  documentation from it anyway.
+- Which effect is loaded is state, not a parameter. The editor switches with `pushResetTypeFromUI`, which renames
+  the ten generic parameters and resets them to the effect's defaults. The UI glue sends the pick as an `effect`
+  frame (the effect's name) ahead of those values and tells the bridge the DSP side has them
+  (`assumeRemoteHasCurrentValues`), because the DSP side switches the same way. The DSP side marks the host's state
+  dirty. A state from the DSP side switches the stand-in, and that switch is not sent back. The stand-in is never
+  prepared to play, so `pushResetTypeFromUI` switches at once instead of queueing for an audio callback.
+- Kit change: renamed parameters. The CLAP wrapper now calls `params.rescan(INFO | TEXT)` from `on_main_thread` when
+  `updateHostDisplay` flags parameter info and a name really differs from what the host read. JUCE's argument-less
+  `updateHostDisplay()` flags everything, hence the comparison. openDAW's `WclapParameters.reconcile` already
+  relabels its parameter boxes on a rescan; the test host and the site's parameter list now show the new names.
+- Tested in Node with the test host's worklet: every effect switched by frame, one second of noise and one of
+  silence each, no NaN or Inf, no peak above +18 dB. Median CPU 0.6 % of real time, at most 13.6 % (Mastering2).
+  Switching from the editor (arrows, search, menu) and back from a host state load, in the test host and on the
+  site in openDAW's engine.
+- Settings and favourites the editor writes (zoom, colours, collection) live in the worker's
+  memory filesystem and are gone on the next open. The default collection is upstream's recommended list, so
+  the search finds only effects in it until "All Plugins" is picked.
+
 ## Open questions
 
 - Worker with `OffscreenCanvas` from the start, or main thread first and the worker later?
