@@ -179,6 +179,25 @@ DEPS += [
                              "libs/filesystem/"))),
 ]
 
+def dexed_filter(path):
+    if path.startswith("assets/"):
+        return not path.startswith(("assets/installers/", "assets/ui/source/"))
+    return path.startswith("source/") or path in ("CMakeLists.txt", "LICENSE", "README.md")
+
+
+# Dexed and the submodules it builds with, at the pins of dexed master at the time of writing. JUCE is the shared
+# one (Dexed pins its own JUCE and clap-juce-extensions; the kit wraps the processor instead).
+DEXED = "dexed/libs/"
+DEPS += [
+    ("dexed", "asb2m10/dexed", "fea2f0f0f2c397799f59b27eb11c038cd34b22c5", dexed_filter),
+    (DEXED + "tuning-library", "surge-synthesizer/tuning-library", "6fa04a024dc9174eebba3b5703f2bbc5fa23fb9e",
+     lambda p: p.startswith("include/") or p == "LICENSE.md"),
+    (DEXED + "surgesynthteam_tuningui", "asb2m10/surgesynthteam_tuningui", "2446bfced29be962759bb2abcb2b623763467154",
+     lambda p: p.endswith((".h", ".cpp")) or p == "LICENSE"),
+    (DEXED + "MTS-ESP", "ODDSound/MTS-ESP", "803c3aab3d43dfaea430a1084ab31b606f5cd72c",
+     lambda p: p.startswith("Client/")),
+]
+
 FONT_PACKAGE ="https://registry.npmjs.org/dejavu-fonts-ttf/-/dejavu-fonts-ttf-2.37.3.tgz"
 FONT_FILES = ["package/ttf/DejaVuSans.ttf", "package/ttf/DejaVuSans-Bold.ttf", "package/LICENSE"]
 
@@ -235,7 +254,7 @@ def fetch_fonts():
 
 # patches/<prefix>-*.patch apply to external/<directory>
 PATCH_TARGETS = [("juce-", "JUCE"), ("six-sines-", "six-sines"), ("ripplerx-", "ripplerx"), ("odin2-", "odin2"),
-                 ("surge-", "surge")]
+                 ("surge-", "surge"), ("dexed-", "dexed")]
 
 
 def apply_patches():
