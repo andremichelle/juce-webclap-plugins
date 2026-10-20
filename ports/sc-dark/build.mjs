@@ -131,7 +131,7 @@ if (!args.has('--prepare-only')) {
     const recipe = hasGit ? capture('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard']).split('\0').filter(file => file && !file.split('/').includes('.DS_Store'))
         : files(root).filter(file => !['build', 'external', 'sources', '.git'].includes(file.split(path.sep)[0]));
     const stage = mkdtempSync(path.join(build, 'source-archive-'));
-    const stageRoot = path.join(stage, 'juce-webclap-plugins');
+    const stageRoot = path.join(stage, 'open-webclap');
     for (const file of recipe) {
         mkdirSync(path.dirname(path.join(stageRoot, file)), {recursive: true});
         copyFileSync(path.join(root, file), path.join(stageRoot, file));
@@ -140,7 +140,7 @@ if (!args.has('--prepare-only')) {
     mkdirSync(pristine, {recursive: true});
     extractUpstream(pristine);
     writeFileSync(path.join(stageRoot, 'source-build.json'), JSON.stringify({repository: remote, portRevision: revision, dirty}, null, 2));
-    run('tar', ['-czf', path.join(build, 'polarity-sc-dark-webclap-source.tar.gz'), '-C', stage, 'juce-webclap-plugins'], {
+    run('tar', ['-czf', path.join(build, 'polarity-sc-dark-webclap-source.tar.gz'), '-C', stage, 'open-webclap'], {
         env: {...process.env, COPYFILE_DISABLE: '1'},
     });
     console.log(`Import: ${path.join(build, 'polarity-sc-dark.wclap.tar.gz')}`);
