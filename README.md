@@ -28,6 +28,12 @@ plugin gets there depends on what it is written with, so the ports here come fro
 | [RipplerX](https://github.com/tiagolr/ripplerx) | Physically modeled percussion synth: mallet and noise exciters into coupled resonators | JUCE kit: an `AudioProcessor` like OB-Xf, plus a little glue for what its editor does beside parameters: keyboard notes, output meter, polyphony, factory programs (`ports/ripplerx/ui_main.cpp`) | GPL-3.0 |
 | [Odin 2](https://github.com/TheWaveWarden/odin2) | Polyphonic semi-modular synth: three oscillators, two filters, modulation matrix, effects | JUCE kit: an `AudioProcessor` whose editor edits the patch's non-parameter trees directly; those cross over as tree properties, patch loads as one frame (`ports/odin2/odin2_frames.h`) | GPL-3.0-or-later |
 | [Surge XT](https://github.com/surge-synthesizer/surge) | Hybrid synth: many oscillator, filter and effect types, deep modulation | JUCE kit: an `AudioProcessor` whose editor reaches into the whole engine, so `ui.wasm` runs a second, silent engine as its stand-in. Parameters cross over as usual, patch loads as state, modulation routings as frames (`ports/surge-xt/surge_frames.h`). Without Lua, OSC and MTS-ESP | GPL-3.0-or-later |
+| [Kars](https://github.com/DISTRHO/Kars) | Karplus-Strong plucked string synth, after karplong | DPF's own CLAP wrapper compiled to WebAssembly: DSP only, hosts show the parameters (`ports/dpf`, `ports/kars`) | ISC |
+| [Nekobi](https://github.com/DISTRHO/Nekobi) | TB-303-style bass synth, after Nekobee | The same DPF recipe (`ports/dpf`, `ports/nekobi`) | GPL-2.0-or-later |
+| [MiMi-d](https://github.com/polluxsynth/audio-plugins) | Polyphonic synthesizer by Ricard Wanderlof (with OB-Xd engine code) | The DPF recipe (`ports/mimid`) | GPL-2.0 |
+| [RaffoSynth](https://github.com/AnClark/RaffoSynth-XT) | Minimoog emulator: Nicolas Roulet's RaffoSynth with a DPF plugin layer | The DPF recipe, plus RaffoSynth's own C sources (`ports/raffosynth`) | GPL-3.0-or-later (core MIT) |
+| [AyMidi](https://github.com/berarma/aymidi) | MIDI synthesizer emulating the AY-3-8910 / YM2149 chips, on Ayumi | The DPF recipe (`ports/aymidi`) | GPL-2.0 (Ayumi MIT) |
+| [Stegosaurus](https://github.com/thunderox/stegosaurus) | Drum synthesizer | The DPF recipe; upstream has no CLAP id, `ports/stegosaurus` sets one (`PLUGIN_CLAP_ID`) | GPL-2.0 |
 | [Polarity SC Dark](https://github.com/polarity/plugin.nih.polarity-sc-dark) | Spectral compressor with upward and downward compression | Rust/NIH-plug + WASI, with a separate HTML/Canvas interface, presets, draggable curve points, and help ([port guide](ports/sc-dark/README.md)) | GPL-3.0-or-later |
 
 The license column is the plugin's and its port's (`ports/<port>/`). JUCE-built bundles link JUCE, so they ship as
@@ -83,6 +89,24 @@ open http://127.0.0.1:8126/
 scripts/build-surge-xt.sh             # and Surge XT
 python3 scripts/serve.py build/surge-xt/web 8127
 open http://127.0.0.1:8127/
+scripts/build-kars.sh                 # and Kars (DPF, DSP only: a minute, no JUCE)
+python3 scripts/serve.py build/kars/web 8129
+open http://127.0.0.1:8129/
+scripts/build-nekobi.sh               # and Nekobi
+python3 scripts/serve.py build/nekobi/web 8130
+open http://127.0.0.1:8130/
+scripts/build-mimid.sh                          # and MiMi-d
+python3 scripts/serve.py build/mimid/web 8131
+open http://127.0.0.1:8131/
+scripts/build-raffosynth.sh                     # and RaffoSynth
+python3 scripts/serve.py build/raffosynth/web 8132
+open http://127.0.0.1:8132/
+scripts/build-aymidi.sh                         # and AyMidi
+python3 scripts/serve.py build/aymidi/web 8133
+open http://127.0.0.1:8133/
+scripts/build-stegosaurus.sh                    # and Stegosaurus
+python3 scripts/serve.py build/stegosaurus/web 8134
+open http://127.0.0.1:8134/
 ```
 
 A clean OB-Xf build takes about 12 minutes, mostly the large JUCE unity files. `-DOBXF_WEB_PNG_THEME=OFF` (passed to
@@ -142,6 +166,14 @@ and the editor must not need an `OpenGLContext`. The files around a JUCE port:
 Before opening a pull request, run a clean build (`rm -rf build/<port>`) and check in the test host that notes
 play, the editor's controls move the sound, automation moves the controls, and state survives Save/Load state and
 Reopen. Changes to `modules/juce_webclap` touch every port: build them all.
+
+**DPF plugins** ([DISTRHO Plugin Framework](https://github.com/DISTRHO/DPF)) need no kit code: DPF already wraps a
+plugin as a CLAP plugin, and `ports/dpf/dpf.cmake` compiles that wrapper with Emscripten into a standalone module
+(the same link options as the JUCE kit's DSP modules). A port is a folder with a three-line `CMakeLists.txt` (the
+plugin's directory and its DSP sources, the Makefile's `FILES_DSP`; optionally `PLUGIN_INCLUDES`, `PLUGIN_DEFINITIONS`,
+`PLUGIN_CXX_FLAGS`, and `PLUGIN_CLAP_ID` for plugins that predate DPF's CLAP support), `NOTICES.md.in` and `LICENSE`, and a
+`scripts/build-<port>.sh` that calls `scripts/build-dpf.sh`. The editor is not built (DPF's UI needs DGL and a window
+system), the bundle is the DSP with its parameters, which hosts show with their generic UI. Follow `ports/kars`.
 
 **Other plugins** bring an independent build path that keeps its dependencies pinned and ships its own license and
 notices. SC Dark shows one: `ports/sc-dark/upstream.json` pins the source, a patch and an overlay adapt it, and
