@@ -1,4 +1,4 @@
-// juce_webclap test host, audio side: runs a WebCLAP module.wasm in an AudioWorklet.
+// open-webclap test host, audio side: runs a WebCLAP module.wasm in an AudioWorklet.
 //
 // A minimal single-threaded CLAP host, enough to test a port: notes, parameters (in and out), state, audio
 // ports (inputs from the node's inputs), clap.gui with the webview API and clap.webview. Calls that CLAP declares main-thread (receive, state,
@@ -245,7 +245,7 @@ class ClapHost extends AudioWorkletProcessor {
         const host = this.alloc(48)
         const extensions = new Map()
         const ext = (name, size) => { const ptr = this.alloc(size); extensions.set(name, ptr); return ptr }
-        const strings = ["juce_webclap test host", "juce_webclap", "", "0.1"].map(text => this.allocString(text))
+        const strings = ["open-webclap test host", "open-webclap", "", "0.1"].map(text => this.allocString(text))
         const v = this.view // after the allocations, see createProcess
         v.setUint32(host, 1, true); v.setUint32(host + 4, 2, true); v.setUint32(host + 8, 0, true)
         v.setUint32(host + 12, 0, true)

@@ -20,7 +20,7 @@ emcmake cmake -S "$ROOT/ports/coopiano" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release "
 cmake --build "$BUILD" -j "$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
 
 # The test host at web/ (the bundle has no ui/)
-cp "$ROOT/modules/juce_webclap/test-host/"* "$WEB/"
+cp "$ROOT/test-host/"* "$WEB/"
 echo '["coopiano.wclap"]' > "$WEB/bundles.json"
 
 # License and notices (LICENSE, NOTICES.md): MIT throughout, no JUCE

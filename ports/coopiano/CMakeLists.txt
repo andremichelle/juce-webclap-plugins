@@ -26,7 +26,7 @@ set(WEBCLAP_FLAGS -msimd128 -fwasm-exceptions)
 
 add_executable(module
     coopiano_clap.cpp
-    "${KIT_ROOT}/modules/juce_webclap/juce_webclap_standalone.cpp")
+    "${KIT_ROOT}/modules/webclap/wasi_shim.cpp")
 
 target_include_directories(module PRIVATE "${EXT}/coopiano" "${EXT}/clap/include")
 target_compile_definitions(module PRIVATE COOPIANO_VERSION="${COOPIANO_VERSION}")

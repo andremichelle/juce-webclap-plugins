@@ -209,7 +209,7 @@ audio_processors_headless).
 - **Standalone wasm.** `-sSTANDALONE_WASM --no-entry` gives `_initialize`, `memory`, `malloc` and the growable
   `__indirect_function_table`; `clap_entry` is exported with `-Wl,--export=clap_entry`. Emscripten still imports
   `env.emscripten_notify_memory_growth` and seven `env.__syscall_*` file calls, which WebCLAP hosts do not
-  provide. `juce_webclap_standalone.cpp` defines them, so the module imports only WASI.
+  provide. `modules/webclap/wasi_shim.cpp` defines them, so the module imports only WASI.
 - **Traps found by running it:** Emscripten's standalone `getentropy()` calls `abort()` (it kills
   `std::random_device`, used by OB-Xf's randomizer), replaced with WASI `random_get`. JUCE's POSIX
   `InterProcessLock` retries forever when it cannot create its lock file, patched to succeed on wasm (no other
@@ -230,7 +230,7 @@ audio_processors_headless).
 - **No factory folder in the DSP.** A fresh instance starts on OB-Xf's init values, not its default patch (the
   editor then shows "Init"). Embedding the default patch would match the desktop plugin.
 
-`modules/juce_webclap/test-host` is a generic host for any port: `clap-host-worklet.js` is a single-threaded CLAP
+`test-host` is a generic host for any port: `clap-host-worklet.js` is a single-threaded CLAP
 host in an AudioWorklet (WASI shim, host callbacks through generated wasm trampolines, events, state, gui,
 webview), the page relays the webview, shows parameters, automates one, saves and loads state, plays notes
 (screen, computer keys, Web MIDI) and can ignore `request_callback` to test the fallback.
@@ -261,7 +261,7 @@ port cuts at (`ports/six-sines`, about 1,450 lines, a third of it upstream's CLA
 - **Threads.** The analyzer's FFT runs on a `std::thread`; `patches/six-sines-no-threads.patch` runs the same loop
   from a 60 Hz `juce::Timer` instead. Nothing else in the editor or engine needed changes.
 - **Empty filesystem.** The engine reads user defaults at construction. Emscripten's standalone `stat` answers
-  ENOSYS and ghc::filesystem throws on that, so `juce_webclap_standalone.cpp` now answers ENOENT for lookups and
+  ENOSYS and ghc::filesystem throws on that, so `modules/webclap/wasi_shim.cpp` now answers ENOENT for lookups and
   EROFS for changes: a DSP module looks like an empty, read-only filesystem.
 - **Build.** All dependencies at Six Sines' submodule pins under `external/six-sines/libs`, JUCE shared (newer than
   Six Sines' 8.0.10 pin, compiles unchanged). CMakeRC resources work under Emscripten as they are. sst-jucegui

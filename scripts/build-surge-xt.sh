@@ -39,7 +39,7 @@ for folder, dirs, names in os.walk(root):
 json.dump({"files": files}, open(os.path.join(root, "manifest.json"), "w"), separators=(",", ":"))
 print(f"factory: {len(files)} files, {sum(size for _, size in files) / 1e6:.1f} MB")
 PY
-cp "$ROOT/modules/juce_webclap/test-host/"* "$WEB/"
+cp "$ROOT/test-host/"* "$WEB/"
 echo '["surge-xt.wclap"]' > "$WEB/bundles.json"
 
 # License and notices (LICENSE, NOTICES.md, licenses/)

@@ -123,7 +123,7 @@ set(JUCE_WEBCLAP_UI_LINK_OPTIONS
     -sEXPORTED_RUNTIME_METHODS=HEAPU8,HEAP32,UTF8ToString,stringToNewUTF8,FS)
 
 # ... and every DSP module (module.wasm): a standalone wasm module (no Emscripten JS), exporting clap_entry, malloc
-# and the function table, importing only WASI. Link juce_webclap_standalone.cpp into it.
+# and the function table, importing only WASI. Link modules/webclap/wasi_shim.cpp into it.
 set(JUCE_WEBCLAP_DSP_LINK_OPTIONS
     ${JUCE_WEBCLAP_FLAGS}
     -sSTANDALONE_WASM=1

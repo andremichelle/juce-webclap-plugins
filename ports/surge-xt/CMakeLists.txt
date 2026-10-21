@@ -196,7 +196,7 @@ add_executable(module
     dsp_main.cpp
     "${SURGE}/src/surge-xt/SurgeSynthProcessor.cpp"
     "${KIT_ROOT}/modules/juce_webclap/juce_webclap_clap.cpp"
-    "${KIT_ROOT}/modules/juce_webclap/juce_webclap_standalone.cpp")
+    "${KIT_ROOT}/modules/webclap/wasi_shim.cpp")
 
 target_include_directories(module PRIVATE "${CMAKE_CURRENT_LIST_DIR}" "${SURGE}/src/surge-xt" "${EXT}/clap/include")
 target_compile_definitions(module PRIVATE SURGE_HEADLESS=1)

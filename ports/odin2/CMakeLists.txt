@@ -132,7 +132,7 @@ target_link_libraries(odin_gui_headless PRIVATE ${ODIN_JUCE})
 add_executable(module
     dsp_main.cpp
     "${KIT_ROOT}/modules/juce_webclap/juce_webclap_clap.cpp"
-    "${KIT_ROOT}/modules/juce_webclap/juce_webclap_standalone.cpp"
+    "${KIT_ROOT}/modules/webclap/wasi_shim.cpp"
     ${ODIN_PROCESSOR_SOURCES})
 
 target_include_directories(module PRIVATE ${ODIN_INCLUDE_DIRECTORIES} "${EXT}/clap/include")

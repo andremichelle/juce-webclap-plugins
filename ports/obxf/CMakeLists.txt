@@ -167,7 +167,7 @@ add_executable(module
     dsp_main.cpp
     shim/colour_headless.cpp
     "${KIT_ROOT}/modules/juce_webclap/juce_webclap_clap.cpp"
-    "${KIT_ROOT}/modules/juce_webclap/juce_webclap_standalone.cpp"
+    "${KIT_ROOT}/modules/webclap/wasi_shim.cpp"
     ${OBXF_PROCESSOR_SOURCES}
     "${GENERATED}/BinaryData.h")
 

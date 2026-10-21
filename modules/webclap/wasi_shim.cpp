@@ -1,5 +1,5 @@
 /*
-    juce_webclap: keeps module.wasm free of Emscripten "env" imports.
+    WASI shim: keeps any module.wasm free of Emscripten "env" imports.
 
     WebCLAP hosts give a module WASI and nothing else (openDAW skips "env" functions), but a standalone Emscripten
     build still imports a few functions from "env" that its JS runtime would provide: the memory growth hook and

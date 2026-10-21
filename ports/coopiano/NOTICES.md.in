@@ -18,7 +18,7 @@ under its own copyright line below.
 |---|---|---|
 | [coopiano](https://github.com/peterc/coopiano) (with `patches/coopiano-webclap.patch`) | 2026 Peter Cooper | MIT |
 | WebCLAP port ([open-webclap](https://github.com/andremichelle/open-webclap) `ports/coopiano`) | 2026 André Michelle | MIT |
-| WASI shim ([open-webclap](https://github.com/andremichelle/open-webclap) `modules/juce_webclap/juce_webclap_standalone.cpp`) | 2026 André Michelle | MIT |
+| WASI shim ([open-webclap](https://github.com/andremichelle/open-webclap) `modules/webclap/wasi_shim.cpp`) | 2026 André Michelle | MIT |
 | [CLAP](https://github.com/free-audio/clap) headers | 2014-2022 Alexandre Bique | MIT |
 
 ## License text

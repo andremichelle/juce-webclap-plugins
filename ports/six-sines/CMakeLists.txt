@@ -170,7 +170,7 @@ set_target_properties(ui PROPERTIES
 
 add_executable(module
     dsp_main.cpp
-    "${KIT_ROOT}/modules/juce_webclap/juce_webclap_standalone.cpp")
+    "${KIT_ROOT}/modules/webclap/wasi_shim.cpp")
 target_link_libraries(module PRIVATE six-sines-engine)
 target_link_options(module PRIVATE ${JUCE_WEBCLAP_DSP_LINK_OPTIONS})
 set_target_properties(module PROPERTIES

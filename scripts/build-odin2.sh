@@ -21,7 +21,7 @@ cmake --build "$BUILD" -j "$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
 
 # The bundle's page (ui/), the test host at web/
 cp "$ROOT/modules/juce_webclap/js/"*.js "$ROOT/ports/odin2/ui/"* "$BUNDLE/ui/"
-cp "$ROOT/modules/juce_webclap/test-host/"* "$WEB/"
+cp "$ROOT/test-host/"* "$WEB/"
 echo '["odin2.wclap"]' > "$WEB/bundles.json"
 
 # License and notices (LICENSE, NOTICES.md, licenses/)

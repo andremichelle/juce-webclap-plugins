@@ -57,8 +57,13 @@ the existing ports.
 - **Editor side:** the plugin's unmodified JUCE editor as `ui.wasm` in a worker, drawn to an OffscreenCanvas
   (`native/`, `js/webclap-ui.js`), talking to the DSP over the message frames of `juce_webclap_protocol.h`.
 - **JUCE for wasm:** `juce_webclap.cmake` and small JUCE changes (`patches/juce-8-wasm.patch`).
+
+Shared by every port, JUCE or not:
+
 - **A test host** (`test-host/`): a page that runs a bundle in an AudioWorklet and shows its editor, for testing a
   port without a DAW.
+- **A WASI shim** (`modules/webclap/wasi_shim.cpp`): keeps an Emscripten-built `module.wasm` free of "env" imports
+  (an empty read-only filesystem, the memory growth hook, entropy from WASI), so it imports WASI only.
 - **Scripts:** `fetch-deps.py` (pinned sources, patched), `build-<port>.sh`, `bundle-license.sh`, `pack-wclap.py`.
 
 ## Build and run

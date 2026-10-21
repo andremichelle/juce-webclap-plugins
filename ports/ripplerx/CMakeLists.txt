@@ -106,7 +106,7 @@ set_target_properties(ui PROPERTIES
 add_executable(module
     dsp_main.cpp
     "${KIT_ROOT}/modules/juce_webclap/juce_webclap_clap.cpp"
-    "${KIT_ROOT}/modules/juce_webclap/juce_webclap_standalone.cpp"
+    "${KIT_ROOT}/modules/webclap/wasi_shim.cpp"
     ${RIPPLERX_PROCESSOR_SOURCES})
 
 target_include_directories(module PRIVATE ${RIPPLERX_INCLUDE_DIRECTORIES} "${EXT}/clap/include")
