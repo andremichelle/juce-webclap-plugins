@@ -1,9 +1,10 @@
 import css from "./PluginPage.sass?inline"
 import {DefaultObservableValue, Lifecycle} from "@opendaw/lib-std"
-import {createElement, Frag, PageFactory, replaceChildren} from "@opendaw/lib-jsx"
+import {createElement, Frag, JsxValue, PageFactory, replaceChildren} from "@opendaw/lib-jsx"
 import {Events, Html} from "@opendaw/lib-dom"
 import {PluginEntry} from "@/plugins"
-import {boot} from "@/opendaw/Boot"
+import {boot, Env} from "@/opendaw/Boot"
+import {Imports} from "@/opendaw/Imports"
 import {BundleSource, PluginSession} from "@/opendaw/PluginSession"
 import {MessageLog} from "@/host/MessageLog"
 import {Button} from "@/ui/components/Button"
@@ -23,10 +24,81 @@ const className = Html.adoptStyleSheet(css, "PluginPage")
 
 // One plugin under test, in its own openDAW project for as long as the page shows
 export const PluginPage = (plugin: PluginEntry): PageFactory<null> => ({lifecycle}) => {
-    let alive = true
-    lifecycle.own({terminate: () => alive = false})
     // dev only: ?local loads the archive the build script left in build/
     const source: BundleSource = import.meta.env.DEV && new URLSearchParams(location.search).has("local") ? "local" : "hosted"
+    const local = source === "local"
+    const name = `${plugin.name}${local ? " (local build)" : ""}`
+    const megabytes = (bytes: number) => (bytes / (1024 * 1024)).toFixed(1)
+    return (
+        <PluginView lifecycle={lifecycle} name={plugin.name}
+                    links={(
+                        <div className="links">
+                            <a href={plugin.credit} target="_blank" rel="noopener noreferrer">Original</a>
+                            <a href={plugin.source} target="_blank" rel="noopener noreferrer">Port source</a>
+                            <span>{plugin.license}</span>
+                        </div>
+                    )}
+                    open={async (env, loading) => {
+                        const url = await PluginSession.download(plugin, source, ({loaded, total}) => {
+                            if (total === 0) {
+                                loading.setValue({text: `Downloading ${name}… ${megabytes(loaded)} MB`, fraction: null})
+                            } else if (loaded < total) {
+                                loading.setValue({text: `Downloading ${name} · ${megabytes(loaded)} of ${megabytes(total)} MB`,
+                                    fraction: loaded / total})
+                            } else {
+                                loading.setValue({text: `Starting ${name}…`, fraction: null})
+                            }
+                        })
+                        return PluginSession.create(env, url, plugin)
+                    }}
+                    subtitle={`${plugin.clapId}${local ? " · local build" : ""}`}
+                    hint={local && <p>Build its bundle with <code>{plugin.build}</code>, then reload this page.</p>}/>
+    )
+}
+
+// A bundle imported from disk (Import in the header), at /imported/<id>; the engine says which plugin it holds
+export const ImportedPage: PageFactory<null> = ({lifecycle, path}) => {
+    const imported = Imports.get(path.split("/")[2] ?? "")
+    if (imported === undefined) {
+        document.title = "Imported plugin · open-webclap"
+        return (
+            <div className={className}>
+                <div className="body">
+                    <div className="message">
+                        <p>Nothing imported here. Imports last until the page reloads: import the bundle again with
+                            Import in the header.</p>
+                    </div>
+                </div>
+            </div>
+        )
+    }
+    return (
+        <PluginView lifecycle={lifecycle} name={imported.fileName}
+                    links={<div className="links"><span>imported from {imported.fileName}</span></div>}
+                    open={async (env, loading) => {
+                        loading.setValue({text: `Unpacking ${imported.fileName}…`, fraction: null})
+                        await imported.ready
+                        loading.setValue({text: `Starting ${imported.fileName}…`, fraction: null})
+                        return PluginSession.create(env, imported.url)
+                    }}
+                    subtitle={null}
+                    hint={false}/>
+    )
+}
+
+type PluginViewConstruct = {
+    lifecycle: Lifecycle
+    name: string // until the session knows the plugin's own
+    links: JsxValue
+    open: (env: Env, loading: DefaultObservableValue<LoadingState>) => Promise<PluginSession>
+    subtitle: string | null // null: the plugin's clap id
+    hint: JsxValue // under the error, when the plugin could not be loaded
+}
+
+const PluginView = ({lifecycle, name, links, open, subtitle: subtitleText, hint}: PluginViewConstruct) => {
+    let alive = true
+    lifecycle.own({terminate: () => alive = false})
+    const title: HTMLElement = <h1>{name}</h1>
     const subtitle: HTMLElement = <span className="subtitle">loading…</span>
     // starting openDAW, downloading the bundle (with its size), handing it to the engine
     const loading = new DefaultObservableValue<LoadingState>({text: "Starting openDAW…", fraction: null})
@@ -35,44 +107,31 @@ export const PluginPage = (plugin: PluginEntry): PageFactory<null> => ({lifecycl
             <div className="loading"><LoadingProgress lifecycle={lifecycle} state={loading}/></div>
         </div>
     )
-    const progress = (text: string) => loading.setValue({text, fraction: null})
-    const megabytes = (bytes: number) => (bytes / (1024 * 1024)).toFixed(1)
-    document.title = `${plugin.name} · open-webclap`
+    document.title = `${name} · open-webclap`
     HeaderTitle.show(lifecycle, (
         <Frag>
-            <h1>{plugin.name}</h1>
+            {title}
             {subtitle}
-            <div className="links">
-                <a href={plugin.credit} target="_blank" rel="noopener noreferrer">Original</a>
-                <a href={plugin.source} target="_blank" rel="noopener noreferrer">Port source</a>
-                <span>{plugin.license}</span>
-            </div>
+            {links}
         </Frag>
     ))
-    boot(progress).then(async env => {
-        const name = `${plugin.name}${source === "local" ? " (local build)" : ""}`
-        const session = await PluginSession.create(env, plugin, source, ({loaded, total}) => {
-            if (total === 0) {
-                progress(`Downloading ${name}… ${megabytes(loaded)} MB`)
-            } else if (loaded < total) {
-                loading.setValue({text: `Downloading ${name} · ${megabytes(loaded)} of ${megabytes(total)} MB`,
-                    fraction: loaded / total})
-            } else {
-                progress(`Starting ${name}…`)
-            }
-        })
+    boot(text => loading.setValue({text, fraction: null})).then(async env => {
+        const session = await open(env, loading)
         if (!alive) {return session.terminate()}
         lifecycle.own(session)
-        subtitle.textContent = `${plugin.clapId}${source === "local" ? " · local build" : ""}`
-        progress(`Starting ${name}…`)
-        replaceChildren(body, <Workbench lifecycle={lifecycle} plugin={plugin} session={session} loading={loading}/>)
+        const {identity} = session
+        title.textContent = identity.name
+        document.title = `${identity.name} · open-webclap`
+        subtitle.textContent = subtitleText ?? identity.clapId
+        loading.setValue({text: `Starting ${identity.name}…`, fraction: null})
+        replaceChildren(body, <Workbench lifecycle={lifecycle} session={session} loading={loading}/>)
     }).catch((reason: unknown) => {
         if (!alive) {return}
         subtitle.textContent = "not loaded"
         replaceChildren(body, (
             <div className="message">
-                <p className="error">{plugin.name} could not be loaded: {reason instanceof Error ? reason.message : String(reason)}</p>
-                {source === "local" && <p>Build its bundle with <code>{plugin.build}</code>, then reload this page.</p>}
+                <p className="error">{name} could not be loaded: {reason instanceof Error ? reason.message : String(reason)}</p>
+                {hint}
             </div>
         ))
     })
@@ -115,12 +174,12 @@ const AudioSwitch = ({lifecycle, context}: { lifecycle: Lifecycle, context: Audi
 
 type WorkbenchConstruct = {
     lifecycle: Lifecycle
-    plugin: PluginEntry
     session: PluginSession
     loading: DefaultObservableValue<LoadingState> // shown in the plugin column until the window is up
 }
 
-const Workbench = ({lifecycle, plugin, session, loading}: WorkbenchConstruct) => {
+const Workbench = ({lifecycle, session, loading}: WorkbenchConstruct) => {
+    const {kind} = session.identity
     const log = new MessageLog(id => `#${id}`)
     const midiStatus: HTMLElement = <span className="muted"/>
     const filter: HTMLInputElement = <input type="search" placeholder="Filter"/>
@@ -141,9 +200,9 @@ const Workbench = ({lifecycle, plugin, session, loading}: WorkbenchConstruct) =>
             </Panel>
             <Panel title="Plugin">
                 <PluginStatus lifecycle={lifecycle} session={session}/>
-                {plugin.kind === "instrument" && midiStatus}
+                {kind === "instrument" && midiStatus}
             </Panel>
-            {plugin.kind === "audio-fx" && (
+            {kind === "audio-fx" && (
                 <Panel title="Input"><InputSource lifecycle={lifecycle} session={session}/></Panel>
             )}
             <Panel title="Parameters" grow actions={<Frag>{parameterCount}{filter}</Frag>}>
@@ -175,7 +234,7 @@ const Workbench = ({lifecycle, plugin, session, loading}: WorkbenchConstruct) =>
                                       stack_?.classList.remove("pending")
                                       loading_?.remove()
                                   }}/>
-                    {plugin.kind === "instrument" && (
+                    {kind === "instrument" && (
                         <Keyboard lifecycle={lifecycle} session={session} midiStatus={midiStatus}/>
                     )}
                 </div>

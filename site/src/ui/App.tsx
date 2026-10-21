@@ -3,7 +3,7 @@ import {createElement, Frag, Router} from "@opendaw/lib-jsx"
 import {Plugins} from "@/plugins"
 import {Header} from "@/ui/Header"
 import {HomePage} from "@/ui/pages/HomePage"
-import {PluginPage} from "@/ui/pages/PluginPage"
+import {ImportedPage, PluginPage} from "@/ui/pages/PluginPage"
 import {NotFoundPage} from "@/ui/pages/NotFoundPage"
 
 export const App = () => {
@@ -17,7 +17,8 @@ export const App = () => {
                 fallback={NotFoundPage}
                 routes={[
                     {path: "/", factory: HomePage},
-                    ...Plugins.map(plugin => ({path: `/${plugin.id}`, factory: PluginPage(plugin)}))
+                    ...Plugins.map(plugin => ({path: `/${plugin.id}`, factory: PluginPage(plugin)})),
+                    {path: "/imported/*", factory: ImportedPage}
                 ]}
             />
         </Frag>

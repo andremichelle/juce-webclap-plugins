@@ -1,11 +1,13 @@
 import css from "./Header.sass?inline"
 import {Lifecycle} from "@opendaw/lib-std"
-import {createElement, JsxValue, LocalLink, replaceChildren} from "@opendaw/lib-jsx"
+import {createElement, JsxValue, LocalLink, replaceChildren, RouteLocation} from "@opendaw/lib-jsx"
 import {Html} from "@opendaw/lib-dom"
 import {PluginKind, Plugins} from "@/plugins"
 import {NavMenu} from "@/ui/components/NavMenu"
 import {Colors} from "@opendaw/studio-enums"
 import {Presentation} from "@/ui/Presentation"
+import {Button} from "@/ui/components/Button"
+import {Imports} from "@/opendaw/Imports"
 
 const className = Html.adoptStyleSheet(css, "Header")
 
@@ -38,6 +40,14 @@ export const Header = ({lifecycle}: { lifecycle: Lifecycle }) => {
     )
     lifecycle.own(Presentation.isAvailable.catchupAndSubscribe(owner =>
         present.classList.toggle("hidden", !owner.getValue())))
+    // an external WebCLAP bundle from disk, shown on a page of its own
+    const file: HTMLInputElement = (
+        <input type="file" accept=".gz,.tgz,.wasm" hidden onchange={() => {
+            const chosen = file.files?.item(0)
+            file.value = ""
+            if (chosen) {RouteLocation.get().navigateTo(`/imported/${Imports.add(chosen).id}`)}
+        }}/>
+    )
     return (
     <header className={className}>
         <h5><LocalLink href="/">open-webclap</LocalLink></h5>
@@ -50,6 +60,9 @@ export const Header = ({lifecycle}: { lifecycle: Lifecycle }) => {
         {present}
         {HeaderTitle.element}
         <div style={{flex: "1"}}/>
+        <Button lifecycle={lifecycle} onClick={() => file.click()}
+                tooltip="Load an external WebCLAP bundle (.wclap.tar.gz) and show it">Import</Button>
+        {file}
         <a className="github" href="https://github.com/andremichelle/open-webclap" target="_blank"
            rel="noopener noreferrer">GitHub</a>
     </header>

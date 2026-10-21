@@ -21,7 +21,7 @@ import {
     SoundfontService,
     WclapBundles
 } from "@opendaw/studio-core"
-import {PluginEntry} from "@/plugins"
+import {PluginEntry, PluginKind} from "@/plugins"
 import {Env} from "@/opendaw/Boot"
 import {LocalSamples} from "@/opendaw/LocalSamples"
 import {HostedHeaders, HostedIndex} from "@/opendaw/HostedIndex"
@@ -30,12 +30,16 @@ export type BundleSource = "hosted" | "local"
 
 export type InputKind = "none" | "microphone" | "file" | "tone" | "noise"
 
+// Which plugin of a bundle a session runs, and how: an instrument, or an effect on an audio track
+export type PluginIdentity = { clapId: string, name: string, kind: PluginKind }
+
 // One plugin in its own openDAW project: an instrument on an instrument unit, or an effect on an audio track.
 // Notes go to the unit, effect input comes from the track (a looped sample) or the unit's monitored capture.
 export class PluginSession implements Terminable {
+    // Fetches a catalog plugin's bundle and registers it with openDAW, resolves to the url the engine asks for
     // download: the bundle's bytes so far and in all (0 while the host does not say)
-    static async create(env: Env, plugin: PluginEntry, source: BundleSource,
-                        download: Procedure<{ loaded: number, total: number }>): Promise<PluginSession> {
+    static async download(plugin: PluginEntry, source: BundleSource,
+                          download: Procedure<{ loaded: number, total: number }>): Promise<string> {
         const url = source === "hosted" ? await HostedIndex.bundleUrl(plugin.clapId) : `/bundles/${plugin.id}.wclap.tar.gz`
         if (url === null) {throw new Error(`${plugin.name} is not hosted by openDAW yet`)}
         const response = await fetch(url, source === "hosted" ? HostedHeaders : undefined)
@@ -45,28 +49,48 @@ export class PluginSession implements Terminable {
         const bytes = await network.progress(fraction => download({loaded: fraction * total, total}))(response).arrayBuffer()
         // The engine asks for the bundle by its url; registered, it needs no credentials of its own
         await WclapBundles.register(url, bytes)
+        return url
+    }
+
+    // url: a registered bundle. Without an identity, the engine describes the bundle and the session runs its
+    // first plugin, an instrument when it says so in its features.
+    static async create(env: Env, url: string, identity?: PluginIdentity): Promise<PluginSession> {
         const {audioContext, audioWorklets, sampleManager, soundfontManager} = env
         const project = Project.new({
             audioContext, audioWorklets, sampleManager, soundfontManager,
             sampleService: new SampleService(audioContext, BpmDetector.Unknown),
             soundfontService: new SoundfontService()
         })
+        let worklet: EngineWorklet | null = null
+        if (identity === undefined) {
+            worklet = project.startAudioWorklet()
+            await project.engine.isReady()
+            const [info] = await project.engine.wclapDescribe(url)
+            if (info === undefined) {
+                project.terminate()
+                throw new Error("The bundle holds no plugin")
+            }
+            identity = {clapId: info.clapId, name: info.name,
+                kind: info.features.includes("instrument") ? "instrument" : "audio-fx"}
+        }
+        const {clapId, kind} = identity
         const created = project.editing.modify(() => {
-            if (plugin.kind === "instrument") {
+            if (kind === "instrument") {
                 const {audioUnitBox, instrumentBox, trackBox} = project.api.createInstrument(InstrumentFactories.Wclap)
                 instrumentBox.url.setValue(url)
-                instrumentBox.clapId.setValue(plugin.clapId)
+                instrumentBox.clapId.setValue(clapId)
                 return {audioUnitBox, trackBox, device: instrumentBox as WclapInstrumentBox | WclapDeviceBox}
             }
             const {audioUnitBox, trackBox} = project.api.createInstrument(InstrumentFactories.Tape)
             const device = asInstanceOf(project.api.insertEffect(audioUnitBox.audioEffects, EffectFactories.Wclap), WclapDeviceBox)
             device.url.setValue(url)
-            device.clapId.setValue(plugin.clapId)
+            device.clapId.setValue(clapId)
             return {audioUnitBox, trackBox, device: device as WclapInstrumentBox | WclapDeviceBox}
         }, false).unwrap("Could not create the device")
-        const worklet = project.startAudioWorklet()
+        worklet ??= project.startAudioWorklet()
         await project.engine.isReady()
-        return new PluginSession(env, project, worklet, created.audioUnitBox, created.trackBox, created.device, url)
+        return new PluginSession(env, identity, project, worklet, created.audioUnitBox, created.trackBox,
+            created.device, url)
     }
 
     readonly #terminator = new Terminator()
@@ -74,6 +98,7 @@ export class PluginSession implements Terminable {
         {region: null, file: null, sample: null}
 
     private constructor(readonly env: Env,
+                        readonly identity: PluginIdentity,
                         readonly project: Project,
                         readonly worklet: EngineWorklet,
                         readonly audioUnitBox: AudioUnitBox,
