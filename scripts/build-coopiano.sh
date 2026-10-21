@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the coopiano WebCLAP bundle into build/coopiano/web/coopiano.wclap, next to the test host. Needs
+# Build the coopiano WebCLAP bundle into build/coopiano/web/coopiano.wclap. Needs
 # Emscripten (emsdk) and the deps from fetch-deps.py.
 set -euo pipefail
 
@@ -19,11 +19,9 @@ python3 "$ROOT/scripts/fetch-deps.py"
 emcmake cmake -S "$ROOT/ports/coopiano" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release "$@"
 cmake --build "$BUILD" -j "$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
 
-# The bundle's page (ui/), the test host at web/
+# The bundle's page (ui/)
 mkdir -p "$BUNDLE/ui"
 cp "$ROOT/ports/coopiano/ui/"* "$BUNDLE/ui/"
-cp "$ROOT/test-host/"* "$WEB/"
-echo '["coopiano.wclap"]' > "$WEB/bundles.json"
 
 # License and notices (LICENSE, NOTICES.md): MIT throughout, no JUCE
 source "$ROOT/scripts/bundle-license.sh"
@@ -31,4 +29,5 @@ BUNDLE_LICENSE="$ROOT/external/coopiano/LICENSE" bundle_license "$BUNDLE" "$ROOT
 
 # The archive hosts import (openDAW: Import WebCLAP...)
 python3 "$ROOT/scripts/pack-wclap.py" "$BUNDLE" "$BUILD/coopiano.wclap.tar.gz"
-echo "Built $BUNDLE — serve the test host with: python3 $ROOT/scripts/serve.py $WEB 8129"
+echo "Built $BUNDLE — try it in the test host: python3 $ROOT/scripts/serve.py $ROOT, then"
+echo "http://127.0.0.1:8123/test-host/?bundle=/build/coopiano/web/coopiano.wclap"

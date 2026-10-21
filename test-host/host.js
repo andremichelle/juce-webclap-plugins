@@ -1,7 +1,8 @@
 // open-webclap test host, page side: loads a WebCLAP bundle, runs its module.wasm in an AudioWorklet
 // (clap-host-worklet.js) and shows its webview page in an iframe, relaying messages like a real host.
 //
-// The bundle comes from ?bundle=<dir>, else the first entry of bundles.json (written by the build).
+// The bundle comes from ?bundle=<dir>: serve the repository (scripts/serve.py) and open
+// /test-host/?bundle=/build/<port>/web/<port>.wclap
 
 "use strict"
 
@@ -20,7 +21,7 @@ let bundle = null, node = null, context = null, storedState = null
 
 async function start() {
     bundle = new URLSearchParams(location.search).get("bundle")
-    if (!bundle) bundle = (await (await fetch("bundles.json")).json())[0]
+    if (!bundle) throw new Error("no bundle: open with ?bundle=/build/<port>/web/<port>.wclap")
     bundle = bundle.replace(/\/$/, "")
 
     context = new AudioContext({latencyHint: "interactive"})

@@ -72,35 +72,21 @@ JUCE ports need Emscripten (emsdk, tested with 3.1.51), CMake, Python 3.
 
 ```sh
 scripts/build-obxf.sh                 # fetches pinned deps into external/, patches JUCE, builds
-python3 scripts/serve.py build/obxf/web
-open http://127.0.0.1:8123/
-
 scripts/build-six-sines.sh            # the same for Six Sines
-python3 scripts/serve.py build/six-sines/web 8124
-open http://127.0.0.1:8124/
-
 scripts/build-ripplerx.sh             # and RipplerX
-python3 scripts/serve.py build/ripplerx/web 8125
-open http://127.0.0.1:8125/
-
 scripts/build-odin2.sh                # and Odin 2
-python3 scripts/serve.py build/odin2/web 8126
-open http://127.0.0.1:8126/
-
 scripts/build-surge-xt.sh             # and Surge XT
-python3 scripts/serve.py build/surge-xt/web 8127
-open http://127.0.0.1:8127/
-
 scripts/build-coopiano.sh             # and coopiano (no JUCE: a few seconds)
-python3 scripts/serve.py build/coopiano/web 8129
-open http://127.0.0.1:8129/
+
+python3 scripts/serve.py .            # the test host, for any built bundle
+open "http://127.0.0.1:8123/test-host/?bundle=/build/obxf/web/obxf.wclap"
 ```
 
 A clean OB-Xf build takes about 12 minutes, mostly the large JUCE unity files. `-DOBXF_WEB_PNG_THEME=OFF` (passed to
 the build script) drops the 9 MB bitmap theme and keeps only OB-Xf's embedded vector theme.
 
-The bundle lands in `build/<port>/web/<port>.wclap` (`module.wasm`, `ui/`), the test host next to it, the archive
-hosts import in `build/<port>/<port>.wclap.tar.gz`. Any port's bundle opens with `?bundle=<dir>`.
+The bundle lands in `build/<port>/web/<port>.wclap` (`module.wasm`, `ui/`), the archive hosts import in
+`build/<port>/<port>.wclap.tar.gz`. The test host opens any bundle with `?bundle=/build/<port>/web/<port>.wclap`.
 
 SC Dark needs Rust stable with `wasm32-wasip1` and `rust-docs`, Node 23 or later, Python 3, Git, and tar. Run
 `scripts/build-sc-dark.sh --test`; the import archive is `build/sc-dark/polarity-sc-dark.wclap.tar.gz`. It does not
@@ -146,9 +132,8 @@ and the editor must not need an `OpenGLContext`. The files around a JUCE port:
   `scripts/fetch-deps.py`, with a filter that fetches only what the build needs.
 - Changes to the plugin's source go in `patches/<port>-*.patch` (add the prefix to `PATCH_TARGETS`). Keep them
   small and describe each at the top of the file; prefer hooks the port fills in over rewrites.
-- `scripts/build-<port>.sh` builds the bundle, copies the page and test host, bundles the licenses and packs the
-  archive, like the existing ones. Add its commands under [Build and run](#build-and-run), with the next free port
-  for `serve.py`.
+- `scripts/build-<port>.sh` builds the bundle, copies its page, bundles the licenses and packs the archive, like the
+  existing ones. Add it under [Build and run](#build-and-run).
 
 Before opening a pull request, run a clean build (`rm -rf build/<port>`) and check in the test host that notes
 play, the editor's controls move the sound, automation moves the controls, and state survives Save/Load state and

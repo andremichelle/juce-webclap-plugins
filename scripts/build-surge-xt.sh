@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the Surge XT WebCLAP bundle into build/surge-xt/web/surge-xt.wclap, next to the test host. Needs Emscripten
+# Build the Surge XT WebCLAP bundle into build/surge-xt/web/surge-xt.wclap. Needs Emscripten
 # (emsdk) and the deps from fetch-deps.py.
 set -euo pipefail
 
@@ -20,7 +20,7 @@ python3 "$ROOT/scripts/fetch-deps.py"
 emcmake cmake -S "$ROOT/ports/surge-xt" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release "$@"
 cmake --build "$BUILD" -j "$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
 
-# The bundle's page (ui/), the test host at web/
+# The bundle's page (ui/)
 rm -f "$BUNDLE/ui/ui.data"
 cp "$ROOT/modules/juce_webclap/js/"*.js "$ROOT/ports/surge-xt/ui/"* "$BUNDLE/ui/"
 
@@ -39,8 +39,6 @@ for folder, dirs, names in os.walk(root):
 json.dump({"files": files}, open(os.path.join(root, "manifest.json"), "w"), separators=(",", ":"))
 print(f"factory: {len(files)} files, {sum(size for _, size in files) / 1e6:.1f} MB")
 PY
-cp "$ROOT/test-host/"* "$WEB/"
-echo '["surge-xt.wclap"]' > "$WEB/bundles.json"
 
 # License and notices (LICENSE, NOTICES.md, licenses/)
 source "$ROOT/scripts/bundle-license.sh"
@@ -59,4 +57,5 @@ bundle_license "$BUNDLE" "$ROOT/ports/surge-xt/NOTICES.md.in" \
 
 # The archive hosts import (openDAW: Import WebCLAP...)
 python3 "$ROOT/scripts/pack-wclap.py" "$BUNDLE" "$BUILD/surge-xt.wclap.tar.gz"
-echo "Built $BUNDLE — serve the test host with: python3 $ROOT/scripts/serve.py $WEB"
+echo "Built $BUNDLE — try it in the test host: python3 $ROOT/scripts/serve.py $ROOT, then"
+echo "http://127.0.0.1:8123/test-host/?bundle=/build/surge-xt/web/surge-xt.wclap"

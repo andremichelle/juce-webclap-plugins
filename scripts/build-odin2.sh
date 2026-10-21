@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the Odin 2 WebCLAP bundle into build/odin2/web/odin2.wclap, next to the test host. Needs Emscripten
+# Build the Odin 2 WebCLAP bundle into build/odin2/web/odin2.wclap. Needs Emscripten
 # (emsdk) and the deps from fetch-deps.py.
 set -euo pipefail
 
@@ -19,10 +19,8 @@ python3 "$ROOT/scripts/fetch-deps.py"
 emcmake cmake -S "$ROOT/ports/odin2" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release "$@"
 cmake --build "$BUILD" -j "$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
 
-# The bundle's page (ui/), the test host at web/
+# The bundle's page (ui/)
 cp "$ROOT/modules/juce_webclap/js/"*.js "$ROOT/ports/odin2/ui/"* "$BUNDLE/ui/"
-cp "$ROOT/test-host/"* "$WEB/"
-echo '["odin2.wclap"]' > "$WEB/bundles.json"
 
 # License and notices (LICENSE, NOTICES.md, licenses/)
 source "$ROOT/scripts/bundle-license.sh"
@@ -34,4 +32,5 @@ bundle_license "$BUNDLE" "$ROOT/ports/odin2/NOTICES.md.in" \
 
 # The archive hosts import (openDAW: Import WebCLAP...)
 python3 "$ROOT/scripts/pack-wclap.py" "$BUNDLE" "$BUILD/odin2.wclap.tar.gz"
-echo "Built $BUNDLE — serve the test host with: python3 $ROOT/scripts/serve.py $WEB"
+echo "Built $BUNDLE — try it in the test host: python3 $ROOT/scripts/serve.py $ROOT, then"
+echo "http://127.0.0.1:8123/test-host/?bundle=/build/odin2/web/odin2.wclap"
