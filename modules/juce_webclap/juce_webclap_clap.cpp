@@ -437,6 +437,10 @@ private:
         switch (type)
         {
             case protocol::hello:
+                // A page that says hello is there, whether or not the host called gui.create first: hosts that
+                // only relay the webview frames (WebCLAP's own browser-test-host and its clap-audionode) never do,
+                // and without this the page would get neither the first snapshot nor any later parameter change.
+                guiCreated = true;
                 pageOpen = true;
                 pageSnapshot = true;
                 sendPageUpdates();
