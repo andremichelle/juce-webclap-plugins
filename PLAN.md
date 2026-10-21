@@ -458,6 +458,9 @@ archive 0.1 MB, MIT throughout.
   partitions over the block and vectorizes the direct heads, and lets the soundboard and the sympathetic bank
   sleep once their input and state are exactly zero (bit-identical; strings flush below 1e-12 instead of 1e-30,
   -216 dB, so that comes about 13 s after the last note): silence under 1 %, the same sound to rounding.
+  The 1.5 s tail is convolved in two sizes: its first 4096 samples in 256-sample partitions, the rest in
+  2048-sample partitions whose latency the offset hides, computed spread over the following block (the tail
+  from 1.78 % to 0.80 % of real time, playing about 5 % less; on the 0.2 s regions the large FFTs cost more).
   With the pedal down, released notes keep ringing (126 voices on average in the test): those voices are the cost,
   two thirds of it in the voices' mode oscillators (already vectorized upstream; their outputs now sum as a tree,
   about a tenth less). Left to decide: playing keeps solving the exact velocities played (a few ms each, spread at
