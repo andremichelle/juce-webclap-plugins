@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>coopiano</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Rubik:wght@300;400&display=swap">
+    <!--
+        coopiano's editor: its three parameters as openDAW Studio's device knobs (ControlBuilder.createKnob: a
+        Column with the name, the Knob and the ParameterLabel), the studio's geometry, colours and dragging. The
+        layout is the studio's at 16px, scaled to the window.
+
+        Messages are text: the page sends "hello", "begin <id>", "set <id> <value>" and "end <id>", the plugin
+        answers "value <id> <value> <text>" (coopiano_clap.cpp).
+    -->
+    <style>
+        :root {
+            /* openDAW's Colors (studio-enums), default scheme hue 197 */
+            --color-bright: hsl(197, 5%, 100%);
+            --color-gray: hsl(197, 31%, 91%);
+            --color-dark: hsl(197, 15%, 84%);
+            --color-blue: hsl(189, 100%, 65%);
+            --color-cream: hsl(65, 37%, 83%);
+            --color-panel-background: hsl(197, 14%, 12%);
+        }
+
+        html, body {
+            /* 11em x 4.5em: three 3.5em columns and the Control padding */
+            font-size: min(100vw / 11, 100vh / 4.5);
+            font-family: Rubik, sans-serif;
+            font-weight: 300;
+            font-variant-numeric: tabular-nums;
+            text-rendering: optimizeLegibility;
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            color: var(--color-bright);
+            background-color: var(--color-panel-background);
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
+            outline: none;
+        }
+
+        h5 {
+            margin: 0;
+            font-weight: inherit;
+        }
+
+        /* mixins.ControlLayout, one row */
+        main {
+            display: grid;
+            grid-template: 3.5em / repeat(3, 3.5em);
+            padding: 0.5em 0.25em;
+            width: min-content;
+            height: 100%;
+            margin: 0 auto;
+        }
+
+        /* Column with LKR = [0.625, 2, 0.625] */
+        .column {
+            display: grid;
+            grid-template-rows: 0.625em 2em 0.625em;
+            height: 100%;
+            margin: 0 1px;
+            align-content: center;
+            justify-items: center;
+            color: var(--color-cream);
+        }
+
+        /* DeviceEditor's h5 for the implementations, Column's h5 */
+        .column > h5 {
+            width: 100%;
+            height: 1.5em;
+            line-height: 1.5em;
+            font-size: 0.5em;
+            text-transform: capitalize;
+            letter-spacing: 0.08em;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            overflow: hidden;
+            text-align: center;
+            color: var(--color-cream);
+        }
+
+        .control {
+            display: contents;
+        }
+
+        /* Knob */
+        svg.knob {
+            min-width: 1.75em;
+            max-width: 1.75em;
+            min-height: 1.75em;
+            max-height: 1.75em;
+            place-self: center;
+            align-self: center;
+            justify-content: center;
+        }
+
+        svg.knob .shadow {
+            opacity: 0.5;
+            filter: blur(1px);
+            mix-blend-mode: luminosity;
+        }
+
+        /* ParameterLabel, its 8px as 0.5em so it scales with the rest */
+        label {
+            padding: 0 0.5em;
+            white-space: nowrap;
+            max-width: 100%;
+            color: var(--color-gray);
+            position: relative;
+            text-align: right;
+            font-size: 0.5em;
+            overflow: hidden;
+            display: flex;
+            column-gap: 0.25em;
+            justify-content: end;
+        }
+
+        label[unit]:not([unit=""])::after {
+            content: attr(unit);
+            color: var(--color-dark);
+            flex: 0 0 1em;
+            text-align: left;
+        }
+
+        .modifying label {
+            color: var(--color-blue);
+        }
+    </style>
+</head>
+<body>
+<main></main>
+<script>
+    // id, name, range and the arc's anchor (ControlBuilder's default: 0) as coopiano_clap.cpp declares them
+    const parameters = [
+        {id: 0, name: "Volume", min: -24.0, max: 12.0, value: 0.0},
+        {id: 1, name: "Reverb", min: 0.0, max: 1.0, value: 0.3},
+        {id: 2, name: "Sustain", min: 0.0, max: 1.0, value: 0.0}
+    ]
+
+    const encoder = new TextEncoder()
+    const decoder = new TextDecoder()
+    const send = text => window.parent.postMessage(encoder.encode(text).buffer, "*")
+
+    // Knob.tsx with DefaultDesign
+    const radius = 20.0, trackWidth = 1.5, angleOffset = Math.PI / 5.0, indicator = [0.3, 0.6], indicatorWidth = 2.5
+    const trackRadius = Math.floor(radius - trackWidth * 0.5)
+    const angleMin = Math.PI / 2.0 + angleOffset
+    const angleMax = Math.PI / 2.0 - angleOffset
+    const angleRange = Math.PI * 2.0 - angleOffset * 2.0
+    const width = radius * 2.0
+    const height = radius + Math.ceil(Math.cos(angleOffset) * radius)
+
+    // Svg.pathBuilder().circleSegment
+    const circleSegment = (radius, a0, a1) => {
+        let range = a1 - a0
+        while (range < 0.0) {range += Math.PI * 2.0}
+        const x0 = Math.cos(a0) * radius, y0 = Math.sin(a0) * radius
+        const x1 = Math.cos(a1) * radius, y1 = Math.sin(a1) * radius
+        return `M${x0.toFixed(3)} ${y0.toFixed(3)}A${radius} ${radius} 0 ${range > Math.PI ? 1 : 0} 1 ${x1.toFixed(3)} ${y1.toFixed(3)}`
+    }
+
+    const svgNs = "http://www.w3.org/2000/svg"
+    const svgElement = (name, attributes) => {
+        const element = document.createElementNS(svgNs, name)
+        Object.entries(attributes).forEach(([key, value]) => element.setAttribute(key, String(value)))
+        return element
+    }
+
+    const createKnob = anchor => {
+        const [min, max] = indicator
+        const svg = svgElement("svg", {viewBox: `0 0 ${width} ${height}`, class: "knob"})
+        const defs = svgElement("defs", {})
+        const gradient = svgElement("linearGradient", {id: "knob-rim", x1: 0, y1: 0, x2: 0, y2: 1})
+        gradient.append(svgElement("stop", {offset: "0%", "stop-color": "white"}),
+            svgElement("stop", {offset: "100%", "stop-color": "black"}))
+        defs.append(gradient)
+        const group = svgElement("g", {
+            fill: "none", stroke: "currentColor", "stroke-linecap": "butt", "stroke-width": trackWidth,
+            transform: `translate(${radius}, ${radius})`
+        })
+        const valuePath = svgElement("path", {d: ""})
+        const linePath = svgElement("path", {
+            d: "", "stroke-linecap": "round", "stroke-width": indicatorWidth, stroke: "rgba(0,0,0,0.5)"
+        })
+        group.append(
+            svgElement("circle", {r: radius * max * 1.1, stroke: "none", fill: "black", class: "shadow", cy: radius * 0.1}),
+            svgElement("circle", {r: radius * max, stroke: "none", fill: "currentColor"}),
+            svgElement("circle", {r: radius * max, stroke: "url(#knob-rim)", "stroke-opacity": 0.5, fill: "none"}),
+            svgElement("path", {stroke: "currentColor", "stroke-opacity": 1 / 3, d: circleSegment(trackRadius, angleMin, angleMax)}),
+            valuePath, linePath)
+        svg.append(defs, group)
+        const angleAnc = angleMin + anchor * angleRange
+        const update = unitValue => {
+            const angleVal = angleMin + unitValue * angleRange
+            valuePath.setAttribute("d", circleSegment(trackRadius,
+                Math.min(angleVal, angleAnc) - 1.0 / trackRadius, Math.max(angleVal, angleAnc) + 1.0 / trackRadius))
+            const cos = Math.cos(angleVal) * trackRadius
+            const sin = Math.sin(angleVal) * trackRadius
+            linePath.setAttribute("d",
+                `M${(cos * min).toFixed(3)} ${(sin * min).toFixed(3)}L${(cos * max).toFixed(3)} ${(sin * max).toFixed(3)}`)
+        }
+        return {svg, update}
+    }
+
+    // RelativeUnitValueDragging: vertical, 128 px for the whole range at ratio 1.5, alt for fine (0.25), escape
+    // restores the start value
+    const installDragging = (element, parameter) => {
+        let drag = null
+        const finish = cancelled => {
+            if (drag === null) {return}
+            if (cancelled) {parameter.setUnit(drag.start)}
+            element.classList.remove("modifying")
+            send(`end ${parameter.id}`)
+            if (document.pointerLockElement === element) {document.exitPointerLock()}
+            drag = null
+        }
+        element.addEventListener("pointerdown", event => {
+            if (event.button !== 0 || drag !== null) {return}
+            event.preventDefault()
+            element.setPointerCapture(event.pointerId)
+            try {element.requestPointerLock()?.catch?.(() => {})} catch {}
+            const start = parameter.unit()
+            drag = {pointerId: event.pointerId, start, x: start}
+            element.classList.add("modifying")
+            send(`begin ${parameter.id}`)
+        })
+        element.addEventListener("pointermove", event => {
+            if (drag === null || event.pointerId !== drag.pointerId) {return}
+            drag.x += -event.movementY / 128.0 * (event.altKey ? 0.25 : 1.5)
+            parameter.setUnit(Math.min(Math.max(drag.x, 0.0), 1.0))
+        })
+        element.addEventListener("pointerup", event => {if (drag !== null && event.pointerId === drag.pointerId) {finish(false)}})
+        element.addEventListener("pointercancel", () => finish(false))
+        element.addEventListener("lostpointercapture", () => finish(false))
+        window.addEventListener("keydown", event => {if (event.key === "Escape") {finish(true)}})
+        return () => drag !== null
+    }
+
+    const main = document.querySelector("main")
+    const controls = new Map(parameters.map(spec => {
+        const column = document.createElement("div")
+        column.className = "column"
+        const title = document.createElement("h5")
+        title.textContent = spec.name
+        const control = document.createElement("div")
+        control.className = "control"
+        const knob = createKnob(0.0)
+        const label = document.createElement("label")
+        control.append(knob.svg, label)
+        column.append(title, control)
+        main.append(column)
+        const toUnit = value => (value - spec.min) / (spec.max - spec.min)
+        const parameter = {
+            id: spec.id,
+            value: spec.value,
+            unit: () => toUnit(parameter.value),
+            setUnit: unit => {
+                parameter.value = spec.min + unit * (spec.max - spec.min)
+                knob.update(unit)
+                send(`set ${spec.id} ${parameter.value}`)
+            }
+        }
+        const dragging = installDragging(control, parameter)
+        // a value from the plugin (it answers every set too): its own text, split into number and unit as
+        // ParameterLabel shows it; the knob keeps following the pointer while it drags
+        const show = (value, text) => {
+            if (!dragging()) {
+                parameter.value = value
+                knob.update(Math.min(Math.max(toUnit(value), 0.0), 1.0))
+            }
+            const match = /^(-?[\d.]+)\s*(.*)$/.exec(text)
+            label.textContent = match === null ? text : match[1]
+            label.setAttribute("unit", match === null ? "" : match[2])
+        }
+        knob.update(toUnit(spec.value))
+        return [spec.id, {show}]
+    }))
+
+    window.addEventListener("message", event => {
+        if (event.source !== window.parent || !(event.data instanceof ArrayBuffer)) {return}
+        const [type, id, value, ...text] = decoder.decode(event.data).split(" ")
+        if (type === "value") {controls.get(Number(id))?.show(Number(value), text.join(" "))}
+    })
+    send("hello")
+</script>
+</body>
+</html>

@@ -1,6 +1,6 @@
 /*
     coopiano as module.wasm: Peter Cooper's physically modelled piano (https://github.com/peterc/coopiano, MIT) as a
-    CLAP instrument, without an editor. Plain CLAP, no framework: the engine is upstream's instrument::Engine behind
+    CLAP instrument. Plain CLAP, no framework: the engine is upstream's instrument::Engine behind
     its own host-rate adapter (piano_host::Adapter, 44.1, 48, 88.2 or 96 kHz), unchanged but for
     patches/coopiano-webclap.patch.
 
@@ -26,9 +26,13 @@
     Parameters: Volume (the engine's output gain, before its soft limiter), Reverb (the room's wet level) and
     Sustain (the damper pedal, continuous: half-pedalling works, for hosts without CC64 as in openDAW). Notes
     arrive as CLAP notes or MIDI (note on/off, CC64). The state is the three values.
+
+    Editor: ui/index.html through clap.gui (the webview API) and clap.webview, the three parameters as openDAW
+    Studio's knobs. Its messages are text (see receive); its edits reach the host as gesture and value events.
 */
 
 #include <clap/clap.h>
+#include <clap/ext/draft/webview.h>
 
 #include "piano_host.hpp"
 
@@ -39,6 +43,8 @@
 #include <cstring>
 #include <memory>
 #include <new>
+#include <string>
+#include <utility>
 
 namespace
 {
@@ -130,6 +136,20 @@ struct Coopiano
     // solver speed in mode-steps per ms, measured: about 7e5 to 9e5 in WebAssembly on an M1, the start is lower
     double workPerMs = 3.0e5, measuredWork = 0, measuredMs = 0;
 
+    // editor: what the page did, for the host (output events), and what the host did, for the page
+    struct OutEvent
+    {
+        uint16_t type;
+        clap_id id;
+        double value;
+    };
+    std::vector<OutEvent> outEvents;
+    const clap_host_params* hostParams = nullptr;
+    const clap_host_webview* hostWebview = nullptr;
+    bool guiCreated = false, pageUpdateRequested = false;
+    bool pageValues[paramCount] {};
+    size_t samplesSinceRequest = 0;
+
     // --- setup ----------------------------------------------------------------------------------------------
 
     bool init()
@@ -142,6 +162,9 @@ struct Coopiano
             adapter = std::make_unique<piano_host::Adapter> (*engine);
             events.reserve (maxEventsPerCall);
             waiting.reserve (maxWaiting);
+            outEvents.reserve (64);
+            hostParams = static_cast<const clap_host_params*> (host->get_extension (host, CLAP_EXT_PARAMS));
+            hostWebview = static_cast<const clap_host_webview*> (host->get_extension (host, CLAP_EXT_WEBVIEW));
             return true;
         }
         catch (const std::exception& e)
@@ -518,6 +541,7 @@ struct Coopiano
                 case CLAP_EVENT_PARAM_VALUE:
                 {
                     const auto* e = reinterpret_cast<const clap_event_param_value*> (header);
+                    hostChanged (e->param_id, e->value);
                     if (e->param_id == sustainId)
                     {
                         setValue (e->param_id, e->value);
@@ -543,11 +567,108 @@ struct Coopiano
             std::fill (right, right + frames, 0.0f);
         }
 
+        if (process.out_events != nullptr)
+            writeEvents (*process.out_events);
+        // a host that never calls on_main_thread gets the page's updates from here, 30 times a second at most
+        if (pageUpdateRequested && (samplesSinceRequest += frames) > (size_t) (sampleRate / 30.0))
+            sendPageUpdates();
+
         // the background fill spends a sixth of the block's real time
         if ((! filled || wantedCount > 0 || fillTarget.first != 0) && waitingHead == waiting.size())
             fill ((long) (blockMs / 6.0 * workPerMs));
         return CLAP_PROCESS_CONTINUE;
     }
+
+    // --- editor ---------------------------------------------------------------------------------------------
+
+    // The page (ui/index.html) sends "hello", "begin <id>", "set <id> <value>" and "end <id>" and gets
+    // "value <id> <value> <text>". Its edits go to the host as output events with the next process or flush; the
+    // host's changes go to the page from on_main_thread. One thread, so that is between process calls.
+    bool receive (const void* buffer, uint32_t size)
+    {
+        const std::string message (static_cast<const char*> (buffer), size);
+        char type[8] {};
+        unsigned id = 0;
+        double value = 0;
+        const int fields = std::sscanf (message.c_str(), "%7s %u %lf", type, &id, &value);
+        if (fields >= 1 && std::strcmp (type, "hello") == 0)
+        {
+            std::fill (std::begin (pageValues), std::end (pageValues), true);
+            sendPageUpdates();
+            return true;
+        }
+        if (fields < 2 || id >= paramCount)
+            return false;
+        if (std::strcmp (type, "begin") == 0 || std::strcmp (type, "end") == 0)
+            outEvents.push_back ({ (uint16_t) (type[0] == 'b' ? CLAP_EVENT_PARAM_GESTURE_BEGIN
+                                                              : CLAP_EVENT_PARAM_GESTURE_END), id, 0.0 });
+        else if (std::strcmp (type, "set") == 0 && fields == 3 && std::isfinite (value))
+        {
+            setValue (id, value);
+            if (id == sustainId)
+                pedalDirty = true;
+            else if (active)
+                applyValues();
+            outEvents.push_back ({ CLAP_EVENT_PARAM_VALUE, id, values[id] });
+            sendValue (id); // the page shows the plugin's text for it
+        }
+        else
+            return false;
+        if (hostParams != nullptr && hostParams->request_flush != nullptr)
+            hostParams->request_flush (host);
+        return true;
+    }
+
+    void writeEvents (const clap_output_events& out)
+    {
+        for (const auto& e : outEvents)
+        {
+            if (e.type == CLAP_EVENT_PARAM_VALUE)
+            {
+                clap_event_param_value event {};
+                event.header = { sizeof event, 0, CLAP_CORE_EVENT_SPACE_ID, CLAP_EVENT_PARAM_VALUE, 0 };
+                event.param_id = e.id;
+                event.note_id = -1;
+                event.port_index = -1;
+                event.channel = -1;
+                event.key = -1;
+                event.value = e.value;
+                out.try_push (&out, &event.header);
+            }
+            else
+            {
+                clap_event_param_gesture event {};
+                event.header = { sizeof event, 0, CLAP_CORE_EVENT_SPACE_ID, e.type, 0 };
+                event.param_id = e.id;
+                out.try_push (&out, &event.header);
+            }
+        }
+        outEvents.clear();
+    }
+
+    // A value from the host (events, state), before setValue: the page follows if it changes
+    void hostChanged (clap_id id, double value)
+    {
+        if (id >= paramCount || ! guiCreated
+            || std::clamp (value, paramSpecs[id].min, paramSpecs[id].max) == values[id])
+            return;
+        pageValues[id] = true;
+        if (pageUpdateRequested)
+            return;
+        pageUpdateRequested = true;
+        samplesSinceRequest = 0;
+        host->request_callback (host);
+    }
+
+    void sendPageUpdates()
+    {
+        pageUpdateRequested = false;
+        for (clap_id id = 0; id < paramCount; ++id)
+            if (std::exchange (pageValues[id], false))
+                sendValue (id);
+    }
+
+    void sendValue (clap_id id);
 
     // --- state ----------------------------------------------------------------------------------------------
 
@@ -571,7 +692,10 @@ struct Coopiano
             || stream.read (&stream, loaded, sizeof loaded) != (int64_t) sizeof loaded)
             return false;
         for (clap_id id = 0; id < paramCount; ++id)
+        {
+            hostChanged (id, loaded[id]);
             setValue (id, loaded[id]);
+        }
         if (active)
             applyValues();
         pedalDirty = true;
@@ -658,6 +782,16 @@ bool paramsValueToText (const clap_plugin*, clap_id id, double value, char* text
     }
 }
 
+void Coopiano::sendValue (clap_id id)
+{
+    if (! guiCreated || hostWebview == nullptr || hostWebview->send == nullptr)
+        return;
+    char text[64] {}, message[128] {};
+    paramsValueToText (&plugin, id, values[id], text, sizeof text);
+    const int length = std::snprintf (message, sizeof message, "value %u %.17g %s", id, values[id], text);
+    hostWebview->send (host, message, (uint32_t) length);
+}
+
 bool paramsTextToValue (const clap_plugin*, clap_id id, const char* text, double* value)
 {
     if (id >= paramCount)
@@ -675,7 +809,7 @@ bool paramsTextToValue (const clap_plugin*, clap_id id, const char* text, double
     return true;
 }
 
-void paramsFlush (const clap_plugin* plugin, const clap_input_events* in, const clap_output_events*)
+void paramsFlush (const clap_plugin* plugin, const clap_input_events* in, const clap_output_events* out)
 {
     auto& p = self (plugin);
     const uint32_t count = in->size (in);
@@ -685,12 +819,15 @@ void paramsFlush (const clap_plugin* plugin, const clap_input_events* in, const 
         if (header->space_id == CLAP_CORE_EVENT_SPACE_ID && header->type == CLAP_EVENT_PARAM_VALUE)
         {
             const auto* e = reinterpret_cast<const clap_event_param_value*> (header);
+            p.hostChanged (e->param_id, e->value);
             p.setValue (e->param_id, e->value);
         }
     }
     if (p.active)
         p.applyValues();
     p.pedalDirty = true;
+    if (out != nullptr)
+        p.writeEvents (*out);
 }
 
 const clap_plugin_params params { paramsCount, paramsInfo, paramsValue, paramsValueToText, paramsTextToValue,
@@ -708,6 +845,75 @@ uint32_t latencyGet (const clap_plugin* plugin)
 }
 
 const clap_plugin_latency latency { latencyGet };
+
+// The editor: ui/index.html in the bundle, a fixed size (the studio's 16px layout at twice the size)
+constexpr uint32_t editorWidth = 352, editorHeight = 144;
+
+bool guiApiSupported (const clap_plugin*, const char* api, bool isFloating)
+{
+    return ! isFloating && std::strcmp (api, CLAP_WINDOW_API_WEBVIEW) == 0;
+}
+
+bool guiPreferredApi (const clap_plugin*, const char** api, bool* isFloating)
+{
+    *api = CLAP_WINDOW_API_WEBVIEW;
+    *isFloating = false;
+    return true;
+}
+
+bool guiCreate (const clap_plugin* plugin, const char* api, bool isFloating)
+{
+    if (! guiApiSupported (plugin, api, isFloating))
+        return false;
+    self (plugin).guiCreated = true;
+    return true;
+}
+
+void guiDestroy (const clap_plugin* plugin)
+{
+    auto& p = self (plugin);
+    p.guiCreated = false;
+    p.pageUpdateRequested = false;
+}
+
+bool guiSize (const clap_plugin*, uint32_t* width, uint32_t* height)
+{
+    *width = editorWidth;
+    *height = editorHeight;
+    return true;
+}
+
+const clap_plugin_gui gui {
+    guiApiSupported,
+    guiPreferredApi,
+    guiCreate,
+    guiDestroy,
+    [] (const clap_plugin*, double) { return false; },
+    guiSize,
+    [] (const clap_plugin*) { return false; },
+    [] (const clap_plugin*, clap_gui_resize_hints*) { return false; },
+    guiSize,
+    [] (const clap_plugin*, uint32_t width, uint32_t height) { return width == editorWidth && height == editorHeight; },
+    [] (const clap_plugin*, const clap_window*) { return true; },
+    [] (const clap_plugin*, const clap_window*) { return false; },
+    [] (const clap_plugin*, const char*) {},
+    [] (const clap_plugin*) { return true; },
+    [] (const clap_plugin*) { return true; }
+};
+
+int32_t webviewUri (const clap_plugin*, char* uri, uint32_t capacity)
+{
+    constexpr const char page[] = "/ui/index.html";
+    if (uri != nullptr && capacity > 0)
+        std::snprintf (uri, capacity, "%s", page);
+    return (int32_t) sizeof page;
+}
+
+const clap_plugin_webview webview {
+    webviewUri,
+    [] (const clap_plugin*, const char*, char*, uint32_t, const clap_ostream*) { return false; }, // hosts serve the bundle
+    [] (const clap_plugin* plugin, const void* buffer, uint32_t size) { return self (plugin).receive (buffer, size); }
+};
 
 // --- plugin -------------------------------------------------------------------------------------------------
 
@@ -753,9 +959,15 @@ const clap_plugin* createPlugin (const clap_host* host)
         if (std::strcmp (id, CLAP_EXT_PARAMS) == 0) return &params;
         if (std::strcmp (id, CLAP_EXT_STATE) == 0) return &state;
         if (std::strcmp (id, CLAP_EXT_LATENCY) == 0) return &latency;
+        if (std::strcmp (id, CLAP_EXT_GUI) == 0) return &gui;
+        if (std::strcmp (id, CLAP_EXT_WEBVIEW) == 0) return &webview;
         return nullptr;
     };
-    p->plugin.on_main_thread = [] (const clap_plugin*) {};
+    p->plugin.on_main_thread = [] (const clap_plugin* plugin)
+    {
+        if (self (plugin).pageUpdateRequested)
+            self (plugin).sendPageUpdates();
+    };
     return &p->plugin;
 }
 

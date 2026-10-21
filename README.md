@@ -28,7 +28,7 @@ plugin gets there depends on what it is written with, so the ports here come fro
 | [RipplerX](https://github.com/tiagolr/ripplerx) | Physically modeled percussion synth: mallet and noise exciters into coupled resonators | JUCE kit: an `AudioProcessor` like OB-Xf, plus a little glue for what its editor does beside parameters: keyboard notes, output meter, polyphony, factory programs (`ports/ripplerx/ui_main.cpp`) | GPL-3.0 |
 | [Odin 2](https://github.com/TheWaveWarden/odin2) | Polyphonic semi-modular synth: three oscillators, two filters, modulation matrix, effects | JUCE kit: an `AudioProcessor` whose editor edits the patch's non-parameter trees directly; those cross over as tree properties, patch loads as one frame (`ports/odin2/odin2_frames.h`) | GPL-3.0-or-later |
 | [Surge XT](https://github.com/surge-synthesizer/surge) | Hybrid synth: many oscillator, filter and effect types, deep modulation | JUCE kit: an `AudioProcessor` whose editor reaches into the whole engine, so `ui.wasm` runs a second, silent engine as its stand-in. Parameters cross over as usual, patch loads as state, modulation routings as frames (`ports/surge-xt/surge_frames.h`). Without Lua, OSC and MTS-ESP | GPL-3.0-or-later |
-| [coopiano](https://github.com/peterc/coopiano) | Physically modelled piano: hammer, strings, soundboard, sympathetic resonance and room, no samples | Plain CLAP, no JUCE and no editor: upstream's engine behind a small C++ wrapper (`ports/coopiano/coopiano_clap.cpp`). Every note's hammer contact is a nonlinear solve too slow for one audio block, so a patch makes it resumable (same results) and the wrapper fills the strike cache in slices on the audio thread | MIT |
+| [coopiano](https://github.com/peterc/coopiano) | Physically modelled piano: hammer, strings, soundboard, sympathetic resonance and room, no samples | Plain CLAP, no JUCE: upstream's engine behind a small C++ wrapper (`ports/coopiano/coopiano_clap.cpp`), an HTML editor with openDAW Studio's knobs (`ports/coopiano/ui`). Every note's hammer contact is a nonlinear solve too slow for one audio block, so a patch makes it resumable (same results) and the wrapper fills the strike cache in slices on the audio thread | MIT |
 | [Polarity SC Dark](https://github.com/polarity/plugin.nih.polarity-sc-dark) | Spectral compressor with upward and downward compression | Rust/NIH-plug + WASI, with a separate HTML/Canvas interface, presets, draggable curve points, and help ([port guide](ports/sc-dark/README.md)) | GPL-3.0-or-later |
 
 The license column is the plugin's and its port's (`ports/<port>/`). JUCE-built bundles link JUCE, so they ship as
@@ -91,7 +91,7 @@ scripts/build-surge-xt.sh             # and Surge XT
 python3 scripts/serve.py build/surge-xt/web 8127
 open http://127.0.0.1:8127/
 
-scripts/build-coopiano.sh             # and coopiano (no JUCE, no editor: a few seconds)
+scripts/build-coopiano.sh             # and coopiano (no JUCE: a few seconds)
 python3 scripts/serve.py build/coopiano/web 8129
 open http://127.0.0.1:8129/
 ```

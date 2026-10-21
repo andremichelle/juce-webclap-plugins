@@ -431,8 +431,11 @@ Stage 2, the editor:
 coopiano (Peter Cooper, MIT) is a physically modelled piano in header-only C++17: hammer, strings, soundboard
 convolution, sympathetic resonance and a room. Its `instrument::Engine` and `piano_host::Adapter` (44.1 kHz inside,
 resampled to 48, 88.2 or 96 kHz) have no threads, files or SDK, so the port is a plain CLAP plugin around them
-(`ports/coopiano/coopiano_clap.cpp`), without JUCE and without an editor: `module.wasm` 0.2 MB, WASI only, the
-archive 0.1 MB, MIT throughout.
+(`ports/coopiano/coopiano_clap.cpp`), without JUCE: `module.wasm` 0.2 MB, WASI only, the archive 0.1 MB, MIT
+throughout. Its editor (`ports/coopiano/ui/index.html`, plain HTML and SVG) shows the three parameters as openDAW
+Studio's device knobs (the studio's `Knob`, `Column` and `ParameterLabel` geometry, colours and dragging, the 16px
+layout scaled to a 352 x 144 window); text messages over `clap.webview/3`, gestures and values to the host as
+output events, the host's changes back from `on_main_thread` (or from `process`, 30 times a second at most).
 
 - The cost is in the strike. Every note starts from the hammer's contact with the strings, a nonlinear solve at 32x
   oversampling until the hammer separates: natively up to 3 ms (soft bass) per key and velocity, in WebAssembly

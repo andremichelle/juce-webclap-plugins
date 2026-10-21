@@ -1,4 +1,5 @@
-# coopiano as a WebCLAP bundle: module.wasm only (the piano as a CLAP instrument, no editor). Plain CLAP, no JUCE.
+# coopiano as a WebCLAP bundle: module.wasm (the piano as a CLAP instrument) and ui/index.html (its editor, copied by
+# the build script). Plain CLAP, no JUCE.
 # Configure with emcmake, see scripts/build-coopiano.sh. The bundle lands in web/coopiano.wclap, next to the test
 # host page.
 

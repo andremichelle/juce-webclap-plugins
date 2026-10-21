@@ -19,7 +19,9 @@ python3 "$ROOT/scripts/fetch-deps.py"
 emcmake cmake -S "$ROOT/ports/coopiano" -B "$BUILD" -DCMAKE_BUILD_TYPE=Release "$@"
 cmake --build "$BUILD" -j "$(sysctl -n hw.ncpu 2>/dev/null || nproc)"
 
-# The test host at web/ (the bundle has no ui/)
+# The bundle's page (ui/), the test host at web/
+mkdir -p "$BUNDLE/ui"
+cp "$ROOT/ports/coopiano/ui/"* "$BUNDLE/ui/"
 cp "$ROOT/test-host/"* "$WEB/"
 echo '["coopiano.wclap"]' > "$WEB/bundles.json"
 
