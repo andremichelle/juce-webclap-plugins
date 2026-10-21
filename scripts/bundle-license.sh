@@ -2,7 +2,8 @@
 #
 #   bundle_license <bundle dir> <NOTICES.md.in> [<source file> <licenses/ name>]...
 #
-# LICENSE is the AGPL-3.0 (every bundle contains JUCE, used under the AGPL), NOTICES.md is the port's template with
+# LICENSE is the AGPL-3.0 (bundles that contain JUCE, used under the AGPL) or, for a port without JUCE, the file in
+# BUNDLE_LICENSE (set before the call). NOTICES.md is the port's template with
 # @SOURCE_URL@ replaced by the repository commit the bundle is built from, the source the GPL/AGPL asks for, and
 # @JUCE_BUNDLED@ by licenses/juce-bundled.md. The pairs after the template are copied into licenses/.
 
@@ -30,7 +31,7 @@ bundle_license() {
 
     rm -rf "$bundle/licenses"
     mkdir -p "$bundle/licenses"
-    cp "$ROOT/licenses/AGPL-3.0.txt" "$bundle/LICENSE"
+    cp "${BUNDLE_LICENSE:-$ROOT/licenses/AGPL-3.0.txt}" "$bundle/LICENSE"
     while [ $# -ge 2 ]; do
         cp "$1" "$bundle/licenses/$2"
         shift 2

@@ -24,11 +24,7 @@ import {
 import {PluginEntry} from "@/plugins"
 import {Env} from "@/opendaw/Boot"
 import {LocalSamples} from "@/opendaw/LocalSamples"
-
-// openDAW's hosted bundles want the same credentials the studio sends (see the studio's OpenDAWHeaders)
-// (dev goes through the vite proxy: the host allows CORS for the site's own origin only)
-const HostedRoot = import.meta.env.DEV ? "/wclaps" : "https://assets.opendaw.studio/wclaps"
-const HostedHeaders: RequestInit = {headers: {"Authorization": `Basic ${btoa("openDAW:prototype")}`}}
+import {HostedHeaders, HostedIndex} from "@/opendaw/HostedIndex"
 
 export type BundleSource = "hosted" | "local"
 
@@ -40,7 +36,8 @@ export class PluginSession implements Terminable {
     // download: the bundle's bytes so far and in all (0 while the host does not say)
     static async create(env: Env, plugin: PluginEntry, source: BundleSource,
                         download: Procedure<{ loaded: number, total: number }>): Promise<PluginSession> {
-        const url = source === "hosted" ? `${HostedRoot}/${plugin.uuid}.wclap` : `/bundles/${plugin.id}.wclap.tar.gz`
+        const url = source === "hosted" ? await HostedIndex.bundleUrl(plugin.clapId) : `/bundles/${plugin.id}.wclap.tar.gz`
+        if (url === null) {throw new Error(`${plugin.name} is not hosted by openDAW yet`)}
         const response = await fetch(url, source === "hosted" ? HostedHeaders : undefined)
         if (!response.ok) {throw new Error(`${url}: ${response.status} ${await response.text()}`.trim())}
         const total = Number(response.headers.get("Content-Length") ?? 0)
